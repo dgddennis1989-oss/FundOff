@@ -791,7 +791,19 @@ function App() {
       {/* Nav */}
       <nav style={{borderBottom:"1px solid #0f0f18",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:60,position:"sticky",top:0,zIndex:100,background:"rgba(9,9,15,0.97)",backdropFilter:"blur(16px)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:32,height:32,borderRadius:9,fontWeight:900,fontSize:14,background:"linear-gradient(135deg,#ff4444,#ff8800)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff"}}>F</div>
+          {/* Logo mark — F with red dot */}
+          <svg width="34" height="34" viewBox="0 0 68 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="34" cy="34" r="34" fill="#0d0d14"/>
+            <circle cx="34" cy="34" r="32" fill="none" stroke="#1e1e2e" strokeWidth="1"/>
+            {/* F stem */}
+            <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+            {/* F top bar */}
+            <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+            {/* F middle bar */}
+            <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+            {/* Red dot */}
+            <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+          </svg>
           <span style={{fontWeight:900,fontSize:19,letterSpacing:-0.5}}>Fund<span style={{color:"#ff4444"}}>Off</span></span>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
