@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>FundOff — The Uncensorable Donation Platform</title>
   <meta name="description" content="The donation platform that can't be bullied. No judges. No freezes. No middlemen. Powered by Base blockchain."/>
   <meta property="og:title" content="FundOff — Uncensorable Donations"/>
   <meta property="og:description" content="GoFundMe took down $454,000 overnight. That can never happen here."/>
-  <meta property="og:image" content="https://fundoff.org/og.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -15,416 +14,357 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #09090f;
-      color: #fff;
-      font-family: 'Inter', -apple-system, sans-serif;
-      min-height: 100vh;
-    }
+    body { background: #09090f; color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; }
+    input, textarea, button, select { font-family: inherit; }
+    input::placeholder, textarea::placeholder { color: #333; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0a0a0f; }
     ::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
-    input, textarea, button { font-family: inherit; }
-    input::placeholder, textarea::placeholder { color: #333; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .fade-in { animation: fadeIn 0.3s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    a { color: #ff4444; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script type="text/babel">
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect } = React;
 
-// ─── Contract Config ──────────────────────────────────────────────────────────
-const CONTRACT_ADDRESS = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
-const CHAIN_ID = "0x2105"; // Base mainnet
-
-// ─── Mock Campaigns (replace with live contract reads post-launch) ────────────
-const MOCK_CAMPAIGNS = [
-  {
-    id: 0,
-    title: "Help Bryan & Ed Recover Their LEGO Collection",
-    description: "Bryan and his 83-year-old father spent a decade building a $200,000 LEGO Star Wars collection. A corporation took it. A judge took down their GoFundMe. This campaign cannot be touched — ever.",
-    recipient: "0x0000000000000000000000000000000000000000",
-    goalUSDC: 20000 * 1e6,
-    totalRaisedUSDC: 15420 * 1e6,
-    donationCount: 847,
-    active: true,
-    tier: "Elite",
-    featuredHomepage: true,
-    createdAt: Date.now() / 1000 - 86400,
-  },
-  {
-    id: 1,
-    title: "Independent Journalist Legal Defense",
-    description: "Facing a SLAPP lawsuit for reporting the truth. GoFundMe removed our campaign under legal pressure. FundOff can't be pressured.",
-    recipient: "0x0000000000000000000000000000000000000000",
-    goalUSDC: 5000 * 1e6,
-    totalRaisedUSDC: 3200 * 1e6,
-    donationCount: 312,
-    active: true,
-    tier: "Pro",
-    featuredHomepage: false,
-    createdAt: Date.now() / 1000 - 172800,
-  },
-  {
-    id: 2,
-    title: "Whistleblower Defense Fund",
-    description: "Exposed corporate fraud. PayPal froze our account. Card processors dropped us. FundOff is the last platform standing.",
-    recipient: "0x0000000000000000000000000000000000000000",
-    goalUSDC: 10000 * 1e6,
-    totalRaisedUSDC: 4100 * 1e6,
-    donationCount: 203,
-    active: true,
-    tier: "Free",
-    featuredHomepage: false,
-    createdAt: Date.now() / 1000 - 259200,
-  },
-];
+// ─── Config ───────────────────────────────────────────────────────────────────
+const CONTRACT = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
+const REPORT_EMAIL = "reports@fundoff.org";
 
 // ─── Tiers ────────────────────────────────────────────────────────────────────
 const TIERS = {
-  Free:  { label: "Free",  price: "$0/mo",     fee: "2%",   color: "#666",    border: "#333",    bg: "rgba(102,102,102,0.08)", perks: ["Basic listing", "2% donation fee", "Blockchain protected", "Instant payments"] },
-  Pro:   { label: "Pro",   price: "$9.99/mo",  fee: "1%",   color: "#4488ff", border: "#4488ff", bg: "rgba(68,136,255,0.08)",  perks: ["Featured badge", "1% donation fee", "Priority listing", "Blockchain protected"] },
-  Elite: { label: "Elite", price: "$29.99/mo", fee: "0.5%", color: "#ff8800", border: "#ff8800", bg: "rgba(255,136,0,0.08)",   perks: ["Homepage featured", "0.5% donation fee", "Top placement", "Analytics", "Blockchain protected"] },
-};
-
-// ─── Utils ────────────────────────────────────────────────────────────────────
-const fmt = (usdc) => {
-  const n = usdc / 1e6;
-  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`;
-  if (n >= 1000)    return `$${(n/1000).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-};
-const pct = (r, g) => Math.min(100, Math.round((r / g) * 100));
-const ago = (ts) => {
-  const d = Math.floor(Date.now()/1000 - ts);
-  if (d < 3600)  return `${Math.floor(d/60)}m ago`;
-  if (d < 86400) return `${Math.floor(d/3600)}h ago`;
-  return `${Math.floor(d/86400)}d ago`;
+  Free:  { label:"Free",  price:"$0/mo",     fee:"2%",   color:"#555",    border:"#2a2a3a", bg:"rgba(85,85,85,0.06)",    perks:["Instant launch","2% donation fee","On-chain protected","Visible in listings"] },
+  Pro:   { label:"Pro",   price:"$9.99/mo",  fee:"1%",   color:"#4488ff", border:"#4488ff", bg:"rgba(68,136,255,0.07)",  perks:["Featured badge","1% donation fee","Priority listing","On-chain protected"] },
+  Elite: { label:"Elite", price:"$29.99/mo", fee:"0.5%", color:"#ff8800", border:"#ff8800", bg:"rgba(255,136,0,0.07)",   perks:["Homepage featured","0.5% donation fee","Top placement","Analytics dashboard","On-chain protected"] },
 };
 
 // ─── Shared Styles ────────────────────────────────────────────────────────────
-const S = {
-  inp: {
-    width:"100%", padding:"13px 14px", borderRadius:10,
-    border:"1px solid #1e1e2e", background:"#0d0d15",
-    color:"#fff", fontSize:15, outline:"none",
-    boxSizing:"border-box", fontFamily:"inherit",
-    transition:"border-color 0.2s",
-  },
-  btn: (extra={}) => ({
-    padding:"15px", borderRadius:12, border:"none",
-    background:"linear-gradient(90deg,#ff4444,#ff8800)",
-    color:"#fff", fontSize:15, fontWeight:700,
-    cursor:"pointer", width:"100%",
-    transition:"opacity 0.2s", ...extra,
-  }),
-  modal: {
-    position:"fixed", inset:0,
-    background:"rgba(0,0,0,0.88)",
-    display:"flex", alignItems:"center", justifyContent:"center",
-    zIndex:1000, padding:16,
-    backdropFilter:"blur(8px)",
-  },
-  card: {
-    background:"#111118",
-    border:"1px solid #1a1a28",
-    borderRadius:16,
-  },
-};
+const inp = { width:"100%", padding:"13px 14px", borderRadius:10, border:"1px solid #1e1e2e", background:"#0d0d15", color:"#fff", fontSize:15, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+const primaryBtn = (extra={}) => ({ padding:"14px", borderRadius:11, border:"none", background:"linear-gradient(90deg,#ff4444,#ff8800)", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", width:"100%", ...extra });
+const ghostBtn = (extra={}) => ({ padding:"12px 22px", borderRadius:11, border:"1px solid #1e1e2e", background:"none", color:"#666", fontSize:14, cursor:"pointer", fontWeight:500, ...extra });
+const card = { background:"#111118", border:"1px solid #1a1a28", borderRadius:16 };
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+const fmt = u => { const n=u/1e6; if(n>=1000000) return `$${(n/1000000).toFixed(1)}M`; if(n>=1000) return `$${(n/1000).toFixed(0)}k`; return `$${n.toFixed(0)}`; };
+const pct = (r,g) => Math.min(100,Math.round((r/g)*100));
+const ago = ts => { const d=Math.floor(Date.now()/1000-ts); if(d<3600) return `${Math.floor(d/60)}m ago`; if(d<86400) return `${Math.floor(d/3600)}h ago`; return `${Math.floor(d/86400)}d ago`; };
 
 // ─── TierBadge ────────────────────────────────────────────────────────────────
-function TierBadge({ tier }) {
-  const t = TIERS[tier] || TIERS.Free;
-  return (
-    <span style={{
-      fontSize:10, fontWeight:700, padding:"3px 9px",
-      borderRadius:99, border:`1px solid ${t.border}`,
-      color:t.color, background:t.bg,
-      textTransform:"uppercase", letterSpacing:0.8,
-    }}>{t.label}</span>
-  );
+function TierBadge({tier}) {
+  const t = TIERS[tier]||TIERS.Free;
+  return <span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,border:`1px solid ${t.border}`,color:t.color,background:t.bg,textTransform:"uppercase",letterSpacing:0.8}}>{t.label}</span>;
 }
 
-// ─── Campaign Card ────────────────────────────────────────────────────────────
-function CampaignCard({ c, onDonate }) {
-  const [hov, setHov] = useState(false);
-  const p = pct(c.totalRaisedUSDC, c.goalUSDC);
-  const isElite = c.tier === "Elite";
+// ─── Report Modal ─────────────────────────────────────────────────────────────
+function ReportModal({campaign, onClose}) {
+  const [reason, setReason] = useState("");
+  const [details, setDetails] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = () => {
+    if (!reason) return;
+    // In production this hits your backend API
+    // For now opens email client as fallback
+    const subject = `FundOff Campaign Report — Campaign #${campaign.id}: ${campaign.title}`;
+    const body = `Campaign ID: ${campaign.id}\nCampaign Title: ${campaign.title}\nRecipient: ${campaign.recipient}\n\nReason: ${reason}\n\nDetails: ${details}\n\nReported at: ${new Date().toISOString()}`;
+    window.location.href = `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setSent(true);
+  };
+
+  const reasons = [
+    "Fraud or scam",
+    "Violent or harmful content",
+    "Terrorism or extremism",
+    "Child exploitation",
+    "Harassment or hate speech",
+    "Misleading information",
+    "Other violation of Terms of Service",
+  ];
 
   return (
-    <div
-      onClick={() => onDonate(c)}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        ...S.card,
-        cursor:"pointer", overflow:"hidden",
-        position:"relative",
-        border:`1px solid ${hov ? (isElite?"#ff8800":"#ff4444") : (isElite?"rgba(255,136,0,0.25)":"#1a1a28")}`,
-        transform: hov ? "translateY(-3px)" : "translateY(0)",
-        transition:"all 0.2s",
-      }}
-    >
-      {isElite && (
-        <div style={{
-          position:"absolute", top:12, right:12, zIndex:2,
-          background:"linear-gradient(90deg,#ff8800,#ffcc00)",
-          color:"#000", fontSize:10, fontWeight:800,
-          padding:"3px 10px", borderRadius:99, letterSpacing:0.5,
-        }}>⭐ FEATURED</div>
-      )}
-
-      <div style={{
-        height:140,
-        background: isElite
-          ? "linear-gradient(135deg,#1a0d00,#2a1500)"
-          : "linear-gradient(135deg,#0d0d1a,#111128)",
-        display:"flex", alignItems:"center", justifyContent:"center",
-        fontSize:48, opacity:0.5,
-      }}>🛡</div>
-
-      <div style={{padding:18}}>
-        <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
-          <TierBadge tier={c.tier} />
-          <span style={{fontSize:11, color:"#333"}}>{ago(c.createdAt)}</span>
-        </div>
-
-        <h3 style={{
-          margin:"0 0 8px", fontSize:15, fontWeight:700, color:"#fff",
-          lineHeight:1.4, display:"-webkit-box",
-          WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden",
-        }}>{c.title}</h3>
-
-        <p style={{
-          margin:"0 0 14px", fontSize:12, color:"#666", lineHeight:1.5,
-          display:"-webkit-box", WebkitLineClamp:2,
-          WebkitBoxOrient:"vertical", overflow:"hidden",
-        }}>{c.description}</p>
-
-        <div style={{background:"#1a1a1a", borderRadius:99, height:5, marginBottom:10, overflow:"hidden"}}>
-          <div style={{
-            width:`${p}%`, height:"100%",
-            background: isElite
-              ? "linear-gradient(90deg,#ff8800,#ffcc00)"
-              : "linear-gradient(90deg,#ff4444,#ff8800)",
-            borderRadius:99, transition:"width 1s ease",
-          }}/>
-        </div>
-
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...card,width:"100%",maxWidth:420,overflow:"hidden"}} className="fade-in">
+        <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <span style={{color:isElite?"#ff8800":"#ff4444", fontWeight:800, fontSize:18}}>
-              {fmt(c.totalRaisedUSDC)}
-            </span>
-            <span style={{color:"#333", fontSize:12}}> of {fmt(c.goalUSDC)}</span>
+            <div style={{fontSize:10,color:"#ff4444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Report Campaign</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#fff",maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{campaign.title}</div>
           </div>
-          <span style={{color:"#444", fontSize:11}}>{c.donationCount.toLocaleString()} donors</span>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
         </div>
 
-        <div style={{
-          marginTop:12, paddingTop:10, borderTop:"1px solid #111",
-          fontSize:10, color:"#2a2a3a",
-          display:"flex", alignItems:"center", gap:4,
-        }}>
-          🔒 On-chain · Uncensorable · {TIERS[c.tier]?.fee || "2%"} fee
-        </div>
+        {!sent ? (
+          <div style={{padding:22,display:"flex",flexDirection:"column",gap:14}}>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,fontWeight:600}}>Reason for report</label>
+              {reasons.map(r=>(
+                <button key={r} onClick={()=>setReason(r)} style={{
+                  display:"block",width:"100%",textAlign:"left",
+                  padding:"10px 12px",marginBottom:6,borderRadius:9,cursor:"pointer",
+                  border:reason===r?"1px solid #ff4444":"1px solid #1e1e2e",
+                  background:reason===r?"rgba(255,68,68,0.08)":"#0d0d15",
+                  color:reason===r?"#ff4444":"#666",fontSize:13,fontWeight:500,
+                }}>{r}</button>
+              ))}
+            </div>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>Additional details (optional)</label>
+              <textarea value={details} onChange={e=>setDetails(e.target.value)} placeholder="Describe the violation..." rows={3} style={{...inp,resize:"none"}}/>
+            </div>
+            <button onClick={handleSubmit} disabled={!reason} style={primaryBtn({opacity:reason?1:0.4,cursor:reason?"pointer":"not-allowed"})}>Submit Report</button>
+            <p style={{fontSize:11,color:"#333",textAlign:"center",lineHeight:1.6}}>
+              Reports are reviewed within 24 hours. Campaigns violating our Terms of Service will be removed from this site. Note: on-chain transactions cannot be reversed.
+            </p>
+          </div>
+        ) : (
+          <div style={{padding:40,textAlign:"center"}} className="fade-in">
+            <div style={{fontSize:44,marginBottom:16}}>✓</div>
+            <h3 style={{color:"#fff",marginBottom:8}}>Report submitted</h3>
+            <p style={{color:"#555",fontSize:13,lineHeight:1.6,marginBottom:20}}>Our team will review this campaign within 24 hours. Thank you for helping keep FundOff safe.</p>
+            <button onClick={onClose} style={ghostBtn()}>Close</button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ─── Donate Modal ─────────────────────────────────────────────────────────────
-function DonateModal({ campaign, onClose }) {
+function DonateModal({campaign, onClose}) {
   const [step, setStep] = useState(1);
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
   const [method, setMethod] = useState("card");
   const [email, setEmail] = useState("");
-  const [card, setCard] = useState("");
+  const [cardN, setCardN] = useState("");
   const [exp, setExp] = useState("");
   const [cvv, setCvv] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [err, setErr] = useState("");
 
-  const feeNum = parseFloat(TIERS[campaign.tier]?.fee || "2%") / 100;
-  const amtNum = parseFloat(amount) || 0;
-  const feeAmt = +(amtNum * feeNum).toFixed(2);
-  const recvAmt = +(amtNum - feeAmt).toFixed(2);
-
-  const handleNext = () => {
-    if (!amount || parseFloat(amount) < 20) { setErr("Minimum donation is $20"); return; }
-    setErr(""); setStep(2);
-  };
-
-  const handlePay = async () => {
-    if (method === "card" && (!email || !card || !exp || !cvv)) {
-      setErr("Please fill in all fields"); return;
-    }
-    setErr(""); setProcessing(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setProcessing(false); setStep(3);
-  };
+  const feeNum = parseFloat(TIERS[campaign.tier]?.fee||"2%")/100;
+  const amtNum = parseFloat(amount)||0;
+  const feeAmt = +(amtNum*feeNum).toFixed(2);
+  const recv   = +(amtNum-feeAmt).toFixed(2);
 
   const fmtCard = v => v.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
-  const fmtExp  = v => { const c = v.replace(/\D/g,"").slice(0,4); return c.length>=2?`${c.slice(0,2)}/${c.slice(2)}`:c; };
+  const fmtExp  = v => { const c=v.replace(/\D/g,"").slice(0,4); return c.length>=2?`${c.slice(0,2)}/${c.slice(2)}`:c; };
+
+  const next = () => {
+    if(!amount||parseFloat(amount)<20){setErr("Minimum donation is $20");return;}
+    if(!agreed){setErr("Please agree to the Terms of Service");return;}
+    setErr("");setStep(2);
+  };
+
+  const pay = async () => {
+    if(method==="card"&&(!email||!cardN||!exp||!cvv)){setErr("Please fill in all fields");return;}
+    setErr("");setProcessing(true);
+    await new Promise(r=>setTimeout(r,2000));
+    setProcessing(false);setStep(3);
+  };
 
   return (
-    <div style={S.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...S.card, width:"100%", maxWidth:420, overflow:"hidden"}} className="fade-in">
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...card,width:"100%",maxWidth:420,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
 
-        <div style={{padding:"18px 22px", borderBottom:"1px solid #111", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#111118",zIndex:1}}>
           <div>
             <div style={{fontSize:10,color:"#ff4444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Donating to</div>
             <div style={{fontSize:14,fontWeight:700,color:"#fff",maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{campaign.title}</div>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22,lineHeight:1}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
         </div>
 
-        {step===1 && (
+        {step===1&&(
           <div style={{padding:22}}>
             <div style={{fontSize:12,color:"#555",marginBottom:10,fontWeight:500}}>Choose amount</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
               {[20,50,100,250].map(p=>(
-                <button key={p} onClick={()=>setAmount(String(p))} style={{
-                  padding:"10px 0", borderRadius:10, cursor:"pointer", fontWeight:700, fontSize:14,
-                  border:amount===String(p)?"2px solid #ff4444":"1px solid #1e1e2e",
-                  background:amount===String(p)?"rgba(255,68,68,0.1)":"#0d0d15",
-                  color:amount===String(p)?"#ff4444":"#555",
-                  transition:"all 0.15s",
-                }}>${p}</button>
+                <button key={p} onClick={()=>setAmount(String(p))} style={{padding:"10px 0",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,border:amount===String(p)?"2px solid #ff4444":"1px solid #1e1e2e",background:amount===String(p)?"rgba(255,68,68,0.1)":"#0d0d15",color:amount===String(p)?"#ff4444":"#555",transition:"all 0.15s"}}>${p}</button>
               ))}
             </div>
-
             <div style={{position:"relative",marginBottom:6}}>
               <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",color:"#444",fontSize:17,fontWeight:600}}>$</span>
-              <input type="number" placeholder="Other amount" value={amount}
-                onChange={e=>setAmount(e.target.value)} min="20"
-                style={{...S.inp, paddingLeft:28}} />
+              <input type="number" placeholder="Other amount" value={amount} onChange={e=>setAmount(e.target.value)} min="20" style={{...inp,paddingLeft:28}}/>
             </div>
-            <div style={{fontSize:11,color:"#2a2a3a",marginBottom:16}}>Minimum $20 · No maximum · {TIERS[campaign.tier]?.fee||"2%"} platform fee</div>
+            <div style={{fontSize:11,color:"#2a2a3a",marginBottom:14}}>Minimum $20 · No maximum · {TIERS[campaign.tier]?.fee||"2%"} platform fee</div>
 
-            {amtNum>=20 && (
+            {amtNum>=20&&(
               <div style={{background:"#0a0a12",border:"1px solid #111",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                   <span style={{color:"#444"}}>Platform fee ({TIERS[campaign.tier]?.fee||"2%"})</span>
                   <span style={{color:"#444"}}>${feeAmt}</span>
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between"}}>
-                  <span style={{color:"#aaa",fontWeight:600}}>Recipient gets</span>
-                  <span style={{color:"#ff4444",fontWeight:700}}>${recvAmt}</span>
+                  <span style={{color:"#aaa",fontWeight:600}}>Recipient receives instantly</span>
+                  <span style={{color:"#ff4444",fontWeight:700}}>${recv}</span>
                 </div>
               </div>
             )}
 
-            <textarea placeholder="Leave a message (optional)" value={message}
-              onChange={e=>setMessage(e.target.value)} rows={2}
-              style={{...S.inp, resize:"none", marginBottom:14}} />
+            <textarea placeholder="Leave a message (optional)" value={message} onChange={e=>setMessage(e.target.value)} rows={2} style={{...inp,resize:"none",marginBottom:14}}/>
 
-            {err && <div style={{color:"#ff4444",fontSize:12,marginBottom:10}}>{err}</div>}
-            <button onClick={handleNext} style={S.btn()}>Continue →</button>
-            <div style={{textAlign:"center",fontSize:10,color:"#222",marginTop:10}}>
-              🔒 Funds go directly to recipient — no middleman can touch them
-            </div>
+            <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:14}}>
+              <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} style={{marginTop:3,accentColor:"#ff4444",width:14,height:14,flexShrink:0}}/>
+              <span style={{fontSize:12,color:"#555",lineHeight:1.5}}>
+                I confirm this campaign complies with FundOff's <span style={{color:"#ff4444",cursor:"pointer"}} onClick={()=>window.dispatchEvent(new CustomEvent('showTos'))}>Terms of Service</span>. I understand donations are processed on-chain and cannot be reversed.
+              </span>
+            </label>
+
+            {err&&<div style={{color:"#ff4444",fontSize:12,marginBottom:10}}>{err}</div>}
+            <button onClick={next} style={primaryBtn()}>Continue →</button>
+            <div style={{textAlign:"center",fontSize:10,color:"#1e1e2e",marginTop:10}}>🔒 Funds go directly to recipient — no middleman</div>
           </div>
         )}
 
-        {step===2 && (
+        {step===2&&(
           <div style={{padding:22}}>
-            <div style={{
-              background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.12)",
-              borderRadius:10,padding:"12px 16px",marginBottom:18,
-              display:"flex",justifyContent:"space-between",alignItems:"center",
-            }}>
+            <div style={{background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.12)",borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span style={{color:"#666",fontSize:13}}>Total</span>
               <span style={{color:"#ff4444",fontSize:20,fontWeight:800}}>${amtNum.toFixed(2)}</span>
             </div>
-
             <div style={{display:"flex",gap:8,marginBottom:18}}>
               {[["card","💳 Card"],["apple","🍎 Apple Pay"],["crypto","⟠ Crypto"]].map(([id,label])=>(
-                <button key={id} onClick={()=>setMethod(id)} style={{
-                  flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",
-                  fontWeight:600,fontSize:11,
-                  border:method===id?"2px solid #ff4444":"1px solid #1e1e2e",
-                  background:method===id?"rgba(255,68,68,0.1)":"#0d0d15",
-                  color:method===id?"#ff4444":"#555",
-                  transition:"all 0.15s",
-                }}>{label}</button>
+                <button key={id} onClick={()=>setMethod(id)} style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",fontWeight:600,fontSize:11,border:method===id?"2px solid #ff4444":"1px solid #1e1e2e",background:method===id?"rgba(255,68,68,0.1)":"#0d0d15",color:method===id?"#ff4444":"#555",transition:"all 0.15s"}}>{label}</button>
               ))}
             </div>
-
-            {method==="card" && (
+            {method==="card"&&(
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <input type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} style={S.inp}/>
-                <input type="text" placeholder="Card number" value={card} onChange={e=>setCard(fmtCard(e.target.value))} maxLength={19} style={S.inp}/>
+                <input type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} style={inp}/>
+                <input type="text" placeholder="Card number" value={cardN} onChange={e=>setCardN(fmtCard(e.target.value))} maxLength={19} style={inp}/>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <input placeholder="MM/YY" value={exp} onChange={e=>setExp(fmtExp(e.target.value))} maxLength={5} style={S.inp}/>
-                  <input placeholder="CVV" value={cvv} onChange={e=>setCvv(e.target.value.replace(/\D/g,"").slice(0,4))} style={S.inp}/>
+                  <input placeholder="MM/YY" value={exp} onChange={e=>setExp(fmtExp(e.target.value))} maxLength={5} style={inp}/>
+                  <input placeholder="CVV" value={cvv} onChange={e=>setCvv(e.target.value.replace(/\D/g,"").slice(0,4))} style={inp}/>
                 </div>
               </div>
             )}
-
-            {method==="apple" && (
+            {method==="apple"&&(
               <div style={{background:"#000",borderRadius:12,padding:28,textAlign:"center",border:"1px solid #111"}}>
                 <div style={{fontSize:40,marginBottom:8}}>🍎</div>
-                <div style={{color:"#fff",fontWeight:700,fontSize:15}}>Apple Pay</div>
-                <div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID to confirm</div>
+                <div style={{color:"#fff",fontWeight:700}}>Apple Pay</div>
+                <div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID</div>
               </div>
             )}
-
-            {method==="crypto" && (
+            {method==="crypto"&&(
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {[["🦊","MetaMask"],["🔵","Coinbase Wallet"],["🔗","WalletConnect"]].map(([icon,name])=>(
-                  <button key={name} style={{
-                    padding:"13px 16px",borderRadius:10,cursor:"pointer",
-                    border:"1px solid #1e1e2e",background:"#0d0d15",
-                    color:"#fff",fontSize:14,textAlign:"left",
-                    display:"flex",alignItems:"center",gap:12,
-                    transition:"border-color 0.15s",
-                  }}>
+                  <button key={name} style={{padding:"13px 16px",borderRadius:10,cursor:"pointer",border:"1px solid #1e1e2e",background:"#0d0d15",color:"#fff",fontSize:14,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
                     <span style={{fontSize:24}}>{icon}</span>{name}
                   </button>
                 ))}
               </div>
             )}
-
-            {err && <div style={{color:"#ff4444",fontSize:12,marginTop:10}}>{err}</div>}
-
-            <button onClick={handlePay} disabled={processing} style={S.btn({
-              marginTop:16,
-              background:processing?"#1a1a1a":"linear-gradient(90deg,#ff4444,#ff8800)",
-              cursor:processing?"not-allowed":"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-              opacity:processing?0.7:1,
-            })}>
-              {processing
-                ? <><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Processing...</>
-                : `Donate $${amtNum.toFixed(2)}`}
+            {err&&<div style={{color:"#ff4444",fontSize:12,marginTop:10}}>{err}</div>}
+            <button onClick={pay} disabled={processing} style={primaryBtn({marginTop:16,background:processing?"#1a1a1a":"linear-gradient(90deg,#ff4444,#ff8800)",cursor:processing?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:processing?0.7:1})}>
+              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Processing...</>:`Donate $${amtNum.toFixed(2)}`}
             </button>
             <button onClick={()=>setStep(1)} style={{width:"100%",padding:"10px",marginTop:6,background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer"}}>← Back</button>
           </div>
         )}
 
-        {step===3 && (
+        {step===3&&(
           <div style={{padding:44,textAlign:"center"}} className="fade-in">
-            <div style={{
-              width:72,height:72,borderRadius:"50%",margin:"0 auto 20px",
-              background:"rgba(255,68,68,0.08)",border:"2px solid #ff4444",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:30,
-            }}>✓</div>
+            <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 20px",background:"rgba(255,68,68,0.08)",border:"2px solid #ff4444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>✓</div>
             <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Donation sent!</h2>
             <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}>
-              <strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> is on its way directly to the recipient's wallet.
-              No platform can freeze it. No judge can reverse it. It's done.
+              <strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> went directly to the recipient's wallet. Instantly. Permanently. No platform can touch it.
             </p>
-            <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:22}}>
-              ✓ Confirmed on Base blockchain · Contract: {CONTRACT_ADDRESS.slice(0,10)}...
+            <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:22}}>✓ Confirmed on Base · {CONTRACT.slice(0,16)}...</div>
+            <button onClick={onClose} style={ghostBtn({padding:"12px 28px"})}>Close</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Create Campaign Modal ────────────────────────────────────────────────────
+function CreateModal({onClose, onCreate}) {
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
+  const [goal, setGoal] = useState("");
+  const [wallet, setWallet] = useState("");
+  const [tier, setTier] = useState("Free");
+  const [agreed, setAgreed] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  const create = () => {
+    if(!title||!desc||!goal||!wallet){setErr("Please fill in all fields");return;}
+    if(!wallet.startsWith("0x")||wallet.length!==42){setErr("Invalid wallet address — must start with 0x and be 42 characters");return;}
+    if(!agreed){setErr("You must agree to the Terms of Service");return;}
+    onCreate({id:Date.now(),title,description:desc,goalUSDC:parseFloat(goal)*1e6,totalRaisedUSDC:0,donationCount:0,recipient:wallet,active:true,tier,featuredHomepage:tier==="Elite",createdAt:Date.now()/1000,hidden:false});
+    setDone(true);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...card,width:"100%",maxWidth:460,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
+        <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#111118",zIndex:1}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Start a Campaign</h2>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+        </div>
+
+        {!done?(
+          <div style={{padding:22,display:"flex",flexDirection:"column",gap:16}}>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>Campaign Title</label>
+              <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="What are you raising funds for?" style={inp} maxLength={100}/>
+              <div style={{fontSize:10,color:"#2a2a3a",marginTop:4}}>{title.length}/100</div>
             </div>
-            <button onClick={onClose} style={{padding:"12px 28px",borderRadius:10,border:"1px solid #1e1e2e",background:"none",color:"#fff",fontSize:13,cursor:"pointer"}}>Close</button>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>Your Story</label>
+              <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Tell people why this matters. Be specific and honest." rows={4} style={{...inp,resize:"none"}}/>
+            </div>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>Fundraising Goal (USD)</label>
+              <div style={{position:"relative"}}>
+                <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",color:"#444",fontSize:16}}>$</span>
+                <input type="number" value={goal} onChange={e=>setGoal(e.target.value)} placeholder="5000" style={{...inp,paddingLeft:26}}/>
+              </div>
+            </div>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>Recipient Wallet Address</label>
+              <input value={wallet} onChange={e=>setWallet(e.target.value)} placeholder="0x..." style={{...inp,fontFamily:"monospace",fontSize:12}}/>
+              <div style={{fontSize:10,color:"#2a2a3a",marginTop:4}}>Donations go directly here. Instantly. Nobody else touches them.</div>
+            </div>
+            <div>
+              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,fontWeight:600}}>Campaign Tier</label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                {Object.entries(TIERS).map(([key,t])=>(
+                  <button key={key} onClick={()=>setTier(key)} style={{padding:"12px 6px",borderRadius:10,cursor:"pointer",border:tier===key?`2px solid ${t.color}`:"1px solid #1e1e2e",background:tier===key?t.bg:"#0d0d15",display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all 0.15s"}}>
+                    <span style={{fontSize:11,fontWeight:700,color:tier===key?t.color:"#444"}}>{t.label}</span>
+                    <span style={{fontSize:9,color:"#2a2a3a"}}>{t.price}</span>
+                    <span style={{fontSize:9,color:tier===key?t.color:"#222"}}>{t.fee} fee</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
+              <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} style={{marginTop:3,accentColor:"#ff4444",width:14,height:14,flexShrink:0}}/>
+              <span style={{fontSize:12,color:"#555",lineHeight:1.5}}>
+                I confirm this campaign complies with FundOff's <span style={{color:"#ff4444",cursor:"pointer"}} onClick={()=>window.dispatchEvent(new CustomEvent('showTos'))}>Terms of Service</span>. I take full legal responsibility for this campaign's content and purpose.
+              </span>
+            </label>
+
+            {err&&<div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
+            <button onClick={create} style={primaryBtn({marginTop:4})}>🚀 Launch Campaign</button>
+            <div style={{fontSize:10,color:"#222",textAlign:"center",lineHeight:1.6}}>
+              Once live, only you can deactivate your campaign.<br/>FundOff cannot. Courts cannot. Nobody else can.
+            </div>
+          </div>
+        ):(
+          <div style={{padding:44,textAlign:"center"}} className="fade-in">
+            <div style={{fontSize:52,marginBottom:16}}>⚡</div>
+            <h2 style={{color:"#fff",margin:"0 0 10px",fontWeight:800}}>Campaign Live!</h2>
+            <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 24px"}}>Your campaign is on Base blockchain. No court order, no corporation, no platform can remove it.</p>
+            <button onClick={onClose} style={primaryBtn({width:"auto",padding:"13px 28px"})}>Done</button>
           </div>
         )}
       </div>
@@ -433,10 +373,10 @@ function DonateModal({ campaign, onClose }) {
 }
 
 // ─── Pricing Modal ────────────────────────────────────────────────────────────
-function PricingModal({ onClose }) {
+function PricingModal({onClose}) {
   return (
-    <div style={S.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...S.card,width:"100%",maxWidth:600,padding:28}} className="fade-in">
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...card,width:"100%",maxWidth:600,padding:28,maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
           <div>
             <h2 style={{margin:0,fontSize:20,fontWeight:800}}>Campaign Tiers</h2>
@@ -444,12 +384,11 @@ function PricingModal({ onClose }) {
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:24}}>×</button>
         </div>
-
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
           {Object.entries(TIERS).map(([key,t])=>(
             <div key={key} style={{border:`1px solid ${t.border}`,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}>
               <div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div>
-              <div style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div>
+              <div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div>
               <div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div>
               <div style={{flex:1,display:"flex",flexDirection:"column",gap:7,marginBottom:18}}>
                 {t.perks.map(p=>(
@@ -458,18 +397,10 @@ function PricingModal({ onClose }) {
                   </div>
                 ))}
               </div>
-              <button style={{
-                padding:"10px",borderRadius:10,
-                border:`1px solid ${t.border}`,
-                background:key==="Elite"?"linear-gradient(90deg,#ff8800,#ffcc00)":key==="Pro"?"linear-gradient(90deg,#4488ff,#6644ff)":"#111",
-                color:key==="Free"?"#555":"#fff",
-                fontSize:13,fontWeight:700,cursor:"pointer",
-              }}>{key==="Free"?"Get Started":`Upgrade to ${key}`}</button>
             </div>
           ))}
         </div>
-
-        <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.08)",borderRadius:10,fontSize:12,color:"#333",textAlign:"center"}}>
+        <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.08)",borderRadius:10,fontSize:12,color:"#444",textAlign:"center"}}>
           All tiers include full blockchain protection. No judge, court, or corporation can take down any campaign on FundOff.
         </div>
       </div>
@@ -477,235 +408,225 @@ function PricingModal({ onClose }) {
   );
 }
 
-// ─── Create Campaign Modal ────────────────────────────────────────────────────
-function CreateModal({ onClose, onCreate }) {
-  const [title, setTitle] = useState("");
-  const [desc, setDesc] = useState("");
-  const [goal, setGoal] = useState("");
-  const [wallet, setWallet] = useState("");
-  const [tier, setTier] = useState("Free");
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState("");
-
-  const handleCreate = () => {
-    if (!title||!desc||!goal||!wallet) { setErr("Please fill in all fields"); return; }
-    if (!wallet.startsWith("0x")||wallet.length!==42) { setErr("Invalid wallet address"); return; }
-    onCreate({
-      id: Date.now(), title, description:desc,
-      goalUSDC: parseFloat(goal)*1e6, totalRaisedUSDC:0,
-      donationCount:0, recipient:wallet, active:true,
-      tier, featuredHomepage:tier==="Elite",
-      createdAt:Date.now()/1000,
-    });
-    setDone(true);
-  };
-
+// ─── Terms of Service Modal ───────────────────────────────────────────────────
+function TosModal({onClose}) {
   return (
-    <div style={S.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...S.card,width:"100%",maxWidth:460,overflow:"hidden",maxHeight:"90vh",overflowY:"auto"}} className="fade-in">
-        <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#111118",zIndex:1}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Start a Campaign</h2>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...card,width:"100%",maxWidth:640,maxHeight:"88vh",overflow:"hidden",display:"flex",flexDirection:"column"}} className="fade-in">
+        <div style={{padding:"18px 24px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Terms of Service</h2>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
         </div>
+        <div style={{padding:24,overflowY:"auto",fontSize:13,color:"#777",lineHeight:1.8}}>
+          <p style={{color:"#aaa",marginBottom:16,fontSize:11}}>Last updated: {new Date().toLocaleDateString()} · FundOff DAO LLC</p>
 
-        {!done ? (
-          <div style={{padding:22,display:"flex",flexDirection:"column",gap:16}}>
-            {[
-              {label:"Campaign Title",val:title,set:setTitle,ph:"What are you raising funds for?",type:"text"},
-              {label:"Goal (USD)",val:goal,set:setGoal,ph:"5000",type:"number",pre:"$"},
-              {label:"Recipient Wallet (0x...)",val:wallet,set:setWallet,ph:"0x...",type:"text",mono:true},
-            ].map(f=>(
-              <div key={f.label}>
-                <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>{f.label}</label>
-                {f.pre ? (
-                  <div style={{position:"relative"}}>
-                    <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",color:"#444",fontSize:16}}>{f.pre}</span>
-                    <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.ph} style={{...S.inp,paddingLeft:26}}/>
-                  </div>
-                ) : (
-                  <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.ph} style={{...S.inp,fontFamily:f.mono?"monospace":"inherit",fontSize:f.mono?12:15}}/>
-                )}
-              </div>
-            ))}
-
-            <div>
-              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:600}}>Your Story</label>
-              <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Tell people why this matters..." rows={4} style={{...S.inp,resize:"none"}}/>
+          {[
+            {title:"1. Acceptance of Terms", body:"By using FundOff (fundoff.org) you agree to these Terms of Service. If you do not agree, do not use this platform. These terms apply to all users including campaign creators and donors."},
+            {title:"2. What FundOff Is", body:"FundOff is a decentralized donation platform built on the Base blockchain. FundOff provides infrastructure for peer-to-peer donations. FundOff does not hold, control, or have access to donated funds at any time. All transactions are processed directly between donors and recipients via smart contracts."},
+            {title:"3. Prohibited Campaigns", body:"The following campaigns are strictly prohibited and will be removed from the FundOff frontend upon discovery:\n\n• Campaigns funding or promoting violence, terrorism, or harm to any person\n• Campaigns involving child exploitation or abuse in any form\n• Campaigns funding illegal weapons acquisition\n• Fraudulent or deceptive campaigns misrepresenting their purpose\n• Campaigns promoting hate speech or discrimination\n• Campaigns funding harassment of specific individuals\n• Any campaign violating applicable local, national, or international law"},
+            {title:"4. Creator Responsibility", body:"Campaign creators take full legal responsibility for their campaign's content, purpose, and accuracy. By creating a campaign you confirm that it complies with these Terms and all applicable laws. FundOff is not responsible for the actions of campaign creators or the use of donated funds."},
+            {title:"5. No Approval Required", body:"FundOff does not pre-approve campaigns. Campaigns go live immediately upon creation. This permissionless design is intentional and core to our mission of censorship-resistant fundraising."},
+            {title:"6. Content Moderation", body:"FundOff reserves the right to remove any campaign from the fundoff.org frontend that violates these Terms. Removal from the frontend does not affect the underlying blockchain transaction or any funds already donated. To report a violating campaign use the Report button on any campaign page."},
+            {title:"7. Blockchain Transactions", body:"All donations are processed on the Base blockchain and are irreversible once confirmed. FundOff cannot reverse, refund, or redirect any blockchain transaction. Donors should verify campaign legitimacy before donating."},
+            {title:"8. Platform Fees", body:"FundOff charges a platform fee on all donations (2% Free tier, 1% Pro tier, 0.5% Elite tier). These fees are automatically deducted at the smart contract level before funds reach the recipient. Tier subscription fees are non-refundable."},
+            {title:"9. Limitation of Liability", body:"FundOff, FundOff DAO LLC, and its members are not liable for any damages arising from use of this platform including but not limited to fraudulent campaigns, loss of funds, or technical failures. Use this platform at your own risk."},
+            {title:"10. Governing Law", body:"These Terms are governed by the laws of the State of Wyoming, United States. Any disputes shall be resolved in Wyoming courts."},
+            {title:"11. Contact", body:`To report a campaign violation email: ${REPORT_EMAIL}\n\nFor all other inquiries: hello@fundoff.org`},
+          ].map(s=>(
+            <div key={s.title} style={{marginBottom:24}}>
+              <h3 style={{color:"#fff",fontSize:14,fontWeight:700,marginBottom:8}}>{s.title}</h3>
+              <p style={{whiteSpace:"pre-line"}}>{s.body}</p>
             </div>
-
-            <div>
-              <label style={{display:"block",color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,fontWeight:600}}>Campaign Tier</label>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                {Object.entries(TIERS).map(([key,t])=>(
-                  <button key={key} onClick={()=>setTier(key)} style={{
-                    padding:"12px 6px",borderRadius:10,cursor:"pointer",
-                    border:tier===key?`2px solid ${t.color}`:"1px solid #1e1e2e",
-                    background:tier===key?t.bg:"#0d0d15",
-                    display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-                    transition:"all 0.15s",
-                  }}>
-                    <span style={{fontSize:11,fontWeight:700,color:tier===key?t.color:"#444"}}>{t.label}</span>
-                    <span style={{fontSize:9,color:"#333"}}>{t.price}</span>
-                    <span style={{fontSize:9,color:tier===key?t.color:"#222"}}>{t.fee} fee</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {err && <div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
-            <button onClick={handleCreate} style={S.btn({marginTop:4})}>🚀 Launch Campaign</button>
-            <div style={{fontSize:10,color:"#222",textAlign:"center"}}>
-              Once live, only you can deactivate your campaign. FundOff cannot.
-            </div>
-          </div>
-        ) : (
-          <div style={{padding:44,textAlign:"center"}} className="fade-in">
-            <div style={{fontSize:52,marginBottom:16}}>⚡</div>
-            <h2 style={{color:"#fff",margin:"0 0 10px",fontWeight:800}}>Campaign Live!</h2>
-            <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 24px"}}>
-              Your campaign is on the Base blockchain. No court order, no corporation, no platform can remove it.
-            </p>
-            <button onClick={onClose} style={S.btn({width:"auto",padding:"13px 28px"})}>View Campaign</button>
-          </div>
-        )}
+          ))}
+        </div>
+        <div style={{padding:"16px 24px",borderTop:"1px solid #111",flexShrink:0}}>
+          <button onClick={onClose} style={primaryBtn({padding:"12px"})}>I understand</button>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Campaign Card ────────────────────────────────────────────────────────────
+function CampaignCard({c, onDonate, onReport}) {
+  const [hov, setHov] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
+  const p = pct(c.totalRaisedUSDC, c.goalUSDC);
+  const isElite = c.tier==="Elite";
+
+  return (
+    <div style={{...card,position:"relative",overflow:"hidden",border:`1px solid ${hov?(isElite?"#ff8800":"#ff4444"):(isElite?"rgba(255,136,0,0.2)":"#1a1a28")}`,transform:hov?"translateY(-3px)":"translateY(0)",transition:"all 0.2s",cursor:"pointer"}}
+      onMouseEnter={()=>setHov(true)} onMouseLeave={()=>{setHov(false);setShowReportMenu(false);}}>
+
+      {isElite&&<div style={{position:"absolute",top:12,right:44,zIndex:2,background:"linear-gradient(90deg,#ff8800,#ffcc00)",color:"#000",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:99,letterSpacing:0.5}}>⭐ FEATURED</div>}
+
+      {/* Report button */}
+      <button
+        onClick={e=>{e.stopPropagation();setShowReportMenu(!showReportMenu);}}
+        style={{position:"absolute",top:12,right:12,zIndex:3,background:"rgba(0,0,0,0.5)",border:"1px solid #222",borderRadius:6,padding:"4px 8px",cursor:"pointer",color:"#444",fontSize:11,backdropFilter:"blur(4px)"}}
+        title="Report this campaign">
+        ⚑
+      </button>
+
+      {showReportMenu&&(
+        <div style={{position:"absolute",top:42,right:12,zIndex:4,background:"#111118",border:"1px solid #222",borderRadius:10,padding:"8px",minWidth:160,boxShadow:"0 8px 24px rgba(0,0,0,0.6)"}}>
+          <button onClick={e=>{e.stopPropagation();onReport(c);setShowReportMenu(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"8px 10px",borderRadius:7,border:"none",background:"none",color:"#ff4444",fontSize:12,cursor:"pointer",fontWeight:600}}>
+            🚩 Report Campaign
+          </button>
+        </div>
+      )}
+
+      <div onClick={()=>onDonate(c)}>
+        <div style={{height:130,background:isElite?"linear-gradient(135deg,#1a0d00,#2a1500)":"linear-gradient(135deg,#0d0d1a,#111128)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,opacity:0.4}}>🛡</div>
+        <div style={{padding:18}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <TierBadge tier={c.tier}/>
+            <span style={{fontSize:11,color:"#2a2a3a"}}>{ago(c.createdAt)}</span>
+          </div>
+          <h3 style={{margin:"0 0 8px",fontSize:15,fontWeight:700,color:"#fff",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{c.title}</h3>
+          <p style={{margin:"0 0 14px",fontSize:12,color:"#555",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{c.description}</p>
+          <div style={{background:"#111",borderRadius:99,height:5,marginBottom:10,overflow:"hidden"}}>
+            <div style={{width:`${p}%`,height:"100%",background:isElite?"linear-gradient(90deg,#ff8800,#ffcc00)":"linear-gradient(90deg,#ff4444,#ff8800)",borderRadius:99,transition:"width 1s ease"}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+            <div>
+              <span style={{color:isElite?"#ff8800":"#ff4444",fontWeight:800,fontSize:18}}>{fmt(c.totalRaisedUSDC)}</span>
+              <span style={{color:"#2a2a3a",fontSize:12}}> of {fmt(c.goalUSDC)}</span>
+            </div>
+            <span style={{color:"#333",fontSize:11}}>{c.donationCount.toLocaleString()} donors</span>
+          </div>
+          <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #0f0f18",fontSize:10,color:"#1e1e2e",display:"flex",alignItems:"center",gap:4}}>
+            🔒 On-chain · Uncensorable · {TIERS[c.tier]?.fee||"2%"} fee
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+function EmptyState({onStart}) {
+  return (
+    <div style={{textAlign:"center",padding:"60px 24px"}}>
+      <div style={{fontSize:64,marginBottom:20,opacity:0.3}}>🛡</div>
+      <h3 style={{color:"#fff",fontSize:20,fontWeight:800,marginBottom:10}}>No campaigns yet</h3>
+      <p style={{color:"#444",fontSize:14,lineHeight:1.7,maxWidth:400,margin:"0 auto 28px"}}>
+        Be the first to launch a campaign on FundOff. Uncensorable. Instant payments. No middleman.
+      </p>
+      <button onClick={onStart} style={primaryBtn({width:"auto",padding:"13px 28px",fontSize:14})}>
+        🚀 Start the first campaign
+      </button>
     </div>
   );
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 function App() {
-  const [campaigns, setCampaigns] = useState(MOCK_CAMPAIGNS);
+  const [campaigns, setCampaigns] = useState([]);
   const [donating, setDonating] = useState(null);
+  const [reporting, setReporting] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [showTos, setShowTos] = useState(false);
 
-  const featured = campaigns.filter(c=>c.active&&c.featuredHomepage);
-  const regular  = campaigns.filter(c=>c.active&&!c.featuredHomepage);
-  const totalRaised = campaigns.reduce((s,c)=>s+c.totalRaisedUSDC,0);
-  const totalDonors = campaigns.reduce((s,c)=>s+c.donationCount,0);
+  useEffect(()=>{
+    const handler = ()=>setShowTos(true);
+    window.addEventListener('showTos',handler);
+    return ()=>window.removeEventListener('showTos',handler);
+  },[]);
+
+  const visibleCampaigns = campaigns.filter(c=>c.active&&!c.hidden);
+  const featured = visibleCampaigns.filter(c=>c.featuredHomepage);
+  const regular  = visibleCampaigns.filter(c=>!c.featuredHomepage);
+  const totalRaised = visibleCampaigns.reduce((s,c)=>s+c.totalRaisedUSDC,0);
+  const totalDonors = visibleCampaigns.reduce((s,c)=>s+c.donationCount,0);
 
   return (
     <div style={{minHeight:"100vh",background:"#09090f"}}>
 
       {/* Nav */}
-      <nav style={{
-        borderBottom:"1px solid #0f0f18",padding:"0 24px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",
-        height:60,position:"sticky",top:0,zIndex:100,
-        background:"rgba(9,9,15,0.97)",backdropFilter:"blur(16px)",
-      }}>
+      <nav style={{borderBottom:"1px solid #0f0f18",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:60,position:"sticky",top:0,zIndex:100,background:"rgba(9,9,15,0.97)",backdropFilter:"blur(16px)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{
-            width:32,height:32,borderRadius:9,fontWeight:900,fontSize:14,
-            background:"linear-gradient(135deg,#ff4444,#ff8800)",
-            display:"flex",alignItems:"center",justifyContent:"center",
-            color:"#fff",letterSpacing:-0.5,
-          }}>F</div>
-          <span style={{fontWeight:900,fontSize:19,letterSpacing:-0.5}}>
-            Fund<span style={{color:"#ff4444"}}>Off</span>
-          </span>
+          <div style={{width:32,height:32,borderRadius:9,fontWeight:900,fontSize:14,background:"linear-gradient(135deg,#ff4444,#ff8800)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff"}}>F</div>
+          <span style={{fontWeight:900,fontSize:19,letterSpacing:-0.5}}>Fund<span style={{color:"#ff4444"}}>Off</span></span>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <button onClick={()=>setShowPricing(true)} style={{
-            padding:"7px 14px",borderRadius:9,border:"1px solid #1a1a28",
-            background:"none",color:"#555",fontSize:12,fontWeight:600,cursor:"pointer",
-          }}>Pricing</button>
-          <button onClick={()=>setShowCreate(true)} style={{
-            padding:"8px 16px",borderRadius:9,border:"none",
-            background:"linear-gradient(90deg,#ff4444,#ff8800)",
-            color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
-          }}>+ Start Campaign</button>
+          <button onClick={()=>setShowPricing(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600})}>Pricing</button>
+          <button onClick={()=>setShowTos(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600})}>Terms</button>
+          <button onClick={()=>setShowCreate(true)} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"linear-gradient(90deg,#ff4444,#ff8800)",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Start Campaign</button>
         </div>
       </nav>
 
       {/* Hero */}
       <div style={{padding:"60px 24px 48px",textAlign:"center",maxWidth:680,margin:"0 auto"}}>
-        <div style={{
-          display:"inline-flex",alignItems:"center",gap:6,
-          background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.15)",
-          borderRadius:99,padding:"5px 14px",fontSize:11,color:"#ff4444",
-          fontWeight:700,marginBottom:24,letterSpacing:0.5,
-        }}>🔒 No judge can take this down</div>
-
-        <h1 style={{
-          fontSize:"clamp(30px,6vw,52px)",fontWeight:900,
-          lineHeight:1.08,margin:"0 0 16px",letterSpacing:-1.5,
-        }}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.15)",borderRadius:99,padding:"5px 14px",fontSize:11,color:"#ff4444",fontWeight:700,marginBottom:24,letterSpacing:0.5}}>🔒 No judge can take this down</div>
+        <h1 style={{fontSize:"clamp(30px,6vw,52px)",fontWeight:900,lineHeight:1.08,margin:"0 0 16px",letterSpacing:-1.5}}>
           The donation platform<br/>
-          <span style={{
-            background:"linear-gradient(90deg,#ff4444,#ff8800)",
-            WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-          }}>that can't be bullied.</span>
+          <span style={{background:"linear-gradient(90deg,#ff4444,#ff8800)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>that can't be bullied.</span>
         </h1>
-
-        <p style={{fontSize:16,color:"#666",lineHeight:1.7,margin:"0 0 32px",maxWidth:520,marginLeft:"auto",marginRight:"auto"}}>
-          GoFundMe took down $454,000 overnight because a judge said so.
-          On FundOff, that's impossible. Campaigns live on the blockchain.
-          Funds go directly to recipients. No court order changes that.
+        <p style={{fontSize:16,color:"#555",lineHeight:1.7,margin:"0 0 32px",maxWidth:520,marginLeft:"auto",marginRight:"auto"}}>
+          GoFundMe took down $454,000 overnight because a judge said so. On FundOff, that's impossible. Campaigns live on the blockchain. Funds go directly to recipients. No court order changes that.
         </p>
-
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,maxWidth:380,margin:"0 auto 36px"}}>
-          {[
-            {label:"Total Raised",val:fmt(totalRaised)},
-            {label:"Total Donors",val:totalDonors.toLocaleString()},
-            {label:"Campaigns",val:campaigns.length},
-          ].map(s=>(
-            <div key={s.label} style={{...S.card,padding:"16px 10px"}}>
+          {[{label:"Total Raised",val:totalRaised>0?fmt(totalRaised):"$0"},{label:"Total Donors",val:totalDonors>0?totalDonors.toLocaleString():"0"},{label:"Campaigns",val:visibleCampaigns.length}].map(s=>(
+            <div key={s.label} style={{...card,padding:"16px 10px"}}>
               <div style={{fontSize:22,fontWeight:800,color:"#ff4444"}}>{s.val}</div>
-              <div style={{fontSize:10,color:"#333",marginTop:3,fontWeight:500}}>{s.label}</div>
+              <div style={{fontSize:10,color:"#2a2a3a",marginTop:3,fontWeight:500}}>{s.label}</div>
             </div>
           ))}
         </div>
-
         <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-          <button onClick={()=>setShowCreate(true)} style={S.btn({width:"auto",padding:"13px 26px",fontSize:14})}>
-            🚀 Start a Campaign
-          </button>
-          <button onClick={()=>setShowPricing(true)} style={{
-            padding:"13px 26px",borderRadius:12,fontSize:14,
-            border:"1px solid #1a1a28",background:"none",
-            color:"#666",cursor:"pointer",fontWeight:500,
-          }}>View Pricing</button>
+          <button onClick={()=>setShowCreate(true)} style={primaryBtn({width:"auto",padding:"13px 26px",fontSize:14})}>🚀 Start a Campaign</button>
+          <button onClick={()=>setShowPricing(true)} style={ghostBtn({padding:"13px 26px"})}>View Pricing</button>
         </div>
       </div>
 
       {/* Featured */}
-      {featured.length>0 && (
+      {featured.length>0&&(
         <div style={{maxWidth:1100,margin:"0 auto",padding:"0 24px 40px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
             <span style={{fontSize:12,fontWeight:800,color:"#ff8800",letterSpacing:0.5}}>⭐ FEATURED CAMPAIGNS</span>
             <span style={{fontSize:10,background:"rgba(255,136,0,0.08)",border:"1px solid rgba(255,136,0,0.15)",color:"#ff8800",padding:"2px 8px",borderRadius:99}}>Elite Tier</span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:18}}>
-            {featured.map(c=><CampaignCard key={c.id} c={c} onDonate={setDonating}/>)}
+            {featured.map(c=><CampaignCard key={c.id} c={c} onDonate={setDonating} onReport={setReporting}/>)}
           </div>
         </div>
       )}
 
       {/* All Campaigns */}
       <div style={{maxWidth:1100,margin:"0 auto",padding:"0 24px 80px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-          <span style={{fontSize:16,fontWeight:800}}>All Campaigns</span>
-          <span style={{fontSize:12,color:"#333"}}>{campaigns.filter(c=>c.active).length} active</span>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:18}}>
-          {regular.map(c=><CampaignCard key={c.id} c={c} onDonate={setDonating}/>)}
-        </div>
+        {visibleCampaigns.length>0?(
+          <>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+              <span style={{fontSize:16,fontWeight:800}}>All Campaigns</span>
+              <span style={{fontSize:12,color:"#2a2a3a"}}>{visibleCampaigns.length} active</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:18}}>
+              {regular.map(c=><CampaignCard key={c.id} c={c} onDonate={setDonating} onReport={setReporting}/>)}
+            </div>
+          </>
+        ):(
+          <EmptyState onStart={()=>setShowCreate(true)}/>
+        )}
       </div>
 
       {/* Footer */}
-      <div style={{borderTop:"1px solid #0d0d15",padding:"24px",textAlign:"center",color:"#1a1a28",fontSize:11}}>
-        <span style={{color:"#ff4444",fontWeight:700}}>FundOff</span>
-        {" "}· Powered by Base · Smart contracts open source · Censorship impossible<br/>
-        <span style={{display:"block",marginTop:4,color:"#111"}}>
-          Contract: {CONTRACT_ADDRESS} · FundOff DAO LLC
-        </span>
+      <div style={{borderTop:"1px solid #0d0d15",padding:"28px 24px",textAlign:"center"}}>
+        <div style={{fontSize:13,color:"#2a2a3a",marginBottom:12}}>
+          <span style={{color:"#ff4444",fontWeight:700}}>FundOff</span> · Powered by Base · <span style={{cursor:"pointer",color:"#333"}} onClick={()=>setShowTos(true)}>Terms of Service</span> · <a href={`mailto:${REPORT_EMAIL}`} style={{color:"#333"}}>Report a Campaign</a>
+        </div>
+        <div style={{fontSize:10,color:"#111",fontFamily:"monospace"}}>
+          Contract: {CONTRACT} · FundOff DAO LLC · Wyoming
+        </div>
       </div>
 
-      {donating && <DonateModal campaign={donating} onClose={()=>setDonating(null)}/>}
-      {showCreate && <CreateModal onClose={()=>setShowCreate(false)} onCreate={c=>setCampaigns(p=>[c,...p])}/>}
-      {showPricing && <PricingModal onClose={()=>setShowPricing(false)}/>}
+      {/* Modals */}
+      {donating&&<DonateModal campaign={donating} onClose={()=>setDonating(null)}/>}
+      {reporting&&<ReportModal campaign={reporting} onClose={()=>setReporting(null)}/>}
+      {showCreate&&<CreateModal onClose={()=>setShowCreate(false)} onCreate={c=>{setCampaigns(p=>[c,...p]);}}/>}
+      {showPricing&&<PricingModal onClose={()=>setShowPricing(false)}/>}
+      {showTos&&<TosModal onClose={()=>setShowTos(false)}/>}
     </div>
   );
 }
