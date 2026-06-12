@@ -27,7 +27,9 @@
     ::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
     .fade-in { animation: fadeIn 0.25s ease forwards; }
+    .slide-up { animation: slideUp 0.4s ease forwards; }
   </style>
 </head>
 <body>
@@ -35,8 +37,9 @@
 <script type="text/babel">
 const { useState, useEffect } = React;
 
-const CONTRACT    = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
+const CONTRACT     = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
 const REPORT_EMAIL = "reports@fundoff.org";
+const TERMS_KEY    = "fundoff_terms_agreed_v1";
 
 const TIERS = {
   Free:  { label:"Free",  price:"$0/mo",     fee:"2%",   color:"#555",    border:"#2a2a3a", bg:"rgba(85,85,85,0.06)",   perks:["Instant launch","2% donation fee","On-chain protected","Visible in listings"] },
@@ -44,10 +47,10 @@ const TIERS = {
   Elite: { label:"Elite", price:"$29.99/mo", fee:"0.5%", color:"#ff8800", border:"#ff8800", bg:"rgba(255,136,0,0.07)",  perks:["Homepage featured","0.5% donation fee","Top placement","Analytics dashboard","On-chain protected"] },
 };
 
-const inp = { width:"100%", padding:"13px 14px", borderRadius:10, border:"1px solid #1e1e2e", background:"#0d0d15", color:"#fff", fontSize:15, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+const inp        = { width:"100%", padding:"13px 14px", borderRadius:10, border:"1px solid #1e1e2e", background:"#0d0d15", color:"#fff", fontSize:15, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
 const primaryBtn = (x={}) => ({ padding:"14px", borderRadius:11, border:"none", background:"linear-gradient(90deg,#ff4444,#ff8800)", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", width:"100%", transition:"opacity 0.2s", ...x });
 const ghostBtn   = (x={}) => ({ padding:"12px 22px", borderRadius:11, border:"1px solid #1e1e2e", background:"none", color:"#666", fontSize:14, cursor:"pointer", fontWeight:500, ...x });
-const card = { background:"#111118", border:"1px solid #1a1a28", borderRadius:16 };
+const cardStyle  = { background:"#111118", border:"1px solid #1a1a28", borderRadius:16 };
 
 const fmt = u => { const n=u/1e6; if(n>=1000000) return `$${(n/1e6).toFixed(1)}M`; if(n>=1000) return `$${(n/1000).toFixed(0)}k`; return `$${n.toFixed(0)}`; };
 const pct = (r,g) => Math.min(100,Math.round((r/g)*100));
@@ -58,8 +61,41 @@ function TierBadge({tier}) {
   return <span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,border:`1px solid ${t.border}`,color:t.color,background:t.bg,textTransform:"uppercase",letterSpacing:0.8}}>{t.label}</span>;
 }
 
-// ─── Terms of Service ─────────────────────────────────────────────────────────
-function TosModal({onClose}) {
+// ─── Terms Banner (auto-shows on first visit) ─────────────────────────────────
+function TermsBanner({onAccept, onViewTos}) {
+  return (
+    <div className="slide-up" style={{
+      position:"fixed", bottom:0, left:0, right:0, zIndex:5000,
+      background:"#111118",
+      borderTop:"1px solid #1e1e2e",
+      padding:"16px 24px",
+      display:"flex", alignItems:"center", justifyContent:"space-between",
+      flexWrap:"wrap", gap:12,
+      boxShadow:"0 -8px 32px rgba(0,0,0,0.6)",
+    }}>
+      <div style={{flex:1, minWidth:260}}>
+        <div style={{fontSize:13, color:"#aaa", lineHeight:1.6}}>
+          By using FundOff you agree to our{" "}
+          <span onClick={onViewTos} style={{color:"#ff4444", cursor:"pointer", textDecoration:"underline", fontWeight:600}}>Terms of Service</span>
+          {" "}and{" "}
+          <a href="/privacy.html" style={{color:"#ff4444", textDecoration:"underline", fontWeight:600}}>Privacy Policy</a>.
+          {" "}FundOff is decentralized infrastructure — campaigns are on-chain and cannot be reversed.
+        </div>
+      </div>
+      <div style={{display:"flex", gap:10, flexShrink:0}}>
+        <button onClick={onViewTos} style={ghostBtn({padding:"10px 18px", fontSize:13})}>
+          Read Terms
+        </button>
+        <button onClick={onAccept} style={primaryBtn({width:"auto", padding:"10px 22px", fontSize:13})}>
+          I Agree
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Terms of Service Modal ───────────────────────────────────────────────────
+function TosModal({onClose, onAccept, showAcceptBtn}) {
   const sections = [
     {t:"1. Acceptance of Terms", b:"By using FundOff (fundoff.org) you agree to these Terms of Service. If you do not agree, do not use this platform. These terms apply to all users including campaign creators and donors."},
     {t:"2. What FundOff Is", b:"FundOff is a decentralized donation platform built on the Base blockchain. FundOff provides infrastructure for peer-to-peer donations. FundOff does not hold, control, or have access to donated funds at any time. All transactions are processed directly between donors and recipients via smart contracts."},
@@ -69,19 +105,19 @@ function TosModal({onClose}) {
     {t:"6. Content Moderation", b:"FundOff reserves the right to remove any campaign from the fundoff.org frontend that violates these Terms. Removal from the frontend does not affect the underlying blockchain transaction or any funds already donated. To report a violating campaign use the Report button on any campaign."},
     {t:"7. Blockchain Transactions", b:"All donations are processed on the Base blockchain and are irreversible once confirmed. FundOff cannot reverse, refund, or redirect any blockchain transaction. Donors should verify campaign legitimacy before donating."},
     {t:"8. Platform Fees", b:"FundOff charges a platform fee on all donations (2% Free tier, 1% Pro tier, 0.5% Elite tier). These fees are automatically deducted at the smart contract level before funds reach the recipient. Tier subscription fees are non-refundable."},
-    {t:"9. Limitation of Liability", b:"FundOff, FundOff DAO LLC, and its members are not liable for any damages arising from use of this platform including fraudulent campaigns, loss of funds, or technical failures. Use at your own risk."},
+    {t:"9. Limitation of Liability", b:"FundOff and its operators are not liable for any damages arising from use of this platform including fraudulent campaigns, loss of funds, or technical failures. Use at your own risk."},
     {t:"10. Governing Law", b:"These Terms are governed by the laws of the State of Wyoming, United States. Any disputes shall be resolved in Wyoming courts."},
     {t:"11. Contact", b:`Report violations: ${REPORT_EMAIL}\nAll other inquiries: hello@fundoff.org`},
   ];
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...card,width:"100%",maxWidth:640,maxHeight:"88vh",overflow:"hidden",display:"flex",flexDirection:"column"}} className="fade-in">
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...cardStyle,width:"100%",maxWidth:640,maxHeight:"88vh",overflow:"hidden",display:"flex",flexDirection:"column"}} className="fade-in">
         <div style={{padding:"18px 24px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Terms of Service</h2>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
         </div>
         <div style={{padding:24,overflowY:"auto",fontSize:13,color:"#777",lineHeight:1.8}}>
-          <p style={{color:"#aaa",marginBottom:20,fontSize:11}}>Last updated: June 2026 · FundOff DAO LLC · Wyoming</p>
+          <p style={{color:"#aaa",marginBottom:20,fontSize:11}}>Last updated: June 2026 · FundOff</p>
           {sections.map(s=>(
             <div key={s.t} style={{marginBottom:22}}>
               <h3 style={{color:"#fff",fontSize:14,fontWeight:700,marginBottom:7}}>{s.t}</h3>
@@ -89,8 +125,15 @@ function TosModal({onClose}) {
             </div>
           ))}
         </div>
-        <div style={{padding:"16px 24px",borderTop:"1px solid #111",flexShrink:0}}>
-          <button onClick={onClose} style={primaryBtn({padding:"12px"})}>I understand</button>
+        <div style={{padding:"16px 24px",borderTop:"1px solid #111",flexShrink:0,display:"flex",gap:10}}>
+          {showAcceptBtn && (
+            <button onClick={()=>{onAccept&&onAccept();onClose();}} style={primaryBtn({padding:"12px"})}>
+              I Agree — Close
+            </button>
+          )}
+          {!showAcceptBtn && (
+            <button onClick={onClose} style={primaryBtn({padding:"12px"})}>Close</button>
+          )}
         </div>
       </div>
     </div>
@@ -105,14 +148,14 @@ function ReportModal({campaign, onClose}) {
   const reasons = ["Fraud or scam","Violent or harmful content","Terrorism or extremism","Child exploitation","Harassment or hate speech","Misleading information","Other Terms of Service violation"];
   const submit = () => {
     if(!reason) return;
-    const sub = `FundOff Report — Campaign #${campaign.id}: ${campaign.title}`;
+    const sub  = `FundOff Report — Campaign #${campaign.id}: ${campaign.title}`;
     const body = `Campaign ID: ${campaign.id}\nTitle: ${campaign.title}\nRecipient: ${campaign.recipient}\nReason: ${reason}\nDetails: ${details}\nReported: ${new Date().toISOString()}`;
     window.location.href = `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
     setSent(true);
   };
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...card,width:"100%",maxWidth:420,overflow:"hidden"}} className="fade-in">
+      <div style={{...cardStyle,width:"100%",maxWidth:420,overflow:"hidden"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:10,color:"#ff4444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Report Campaign</div>
@@ -120,8 +163,8 @@ function ReportModal({campaign, onClose}) {
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
         </div>
-        {!sent ? (
-          <div style={{padding:22,display:"flex",flexDirection:"column",gap:12}}>
+        {!sent?(
+          <div style={{padding:22,display:"flex",flexDirection:"column",gap:10}}>
             <div style={{fontSize:12,color:"#555",fontWeight:500}}>Select reason</div>
             {reasons.map(r=>(
               <button key={r} onClick={()=>setReason(r)} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:9,cursor:"pointer",border:reason===r?"1px solid #ff4444":"1px solid #1e1e2e",background:reason===r?"rgba(255,68,68,0.08)":"#0d0d15",color:reason===r?"#ff4444":"#555",fontSize:13,fontWeight:500}}>{r}</button>
@@ -130,7 +173,7 @@ function ReportModal({campaign, onClose}) {
             <button onClick={submit} disabled={!reason} style={primaryBtn({opacity:reason?1:0.4,cursor:reason?"pointer":"not-allowed"})}>Submit Report</button>
             <p style={{fontSize:11,color:"#2a2a3a",textAlign:"center",lineHeight:1.6}}>Reports reviewed within 24 hours. Violations removed from site promptly.</p>
           </div>
-        ) : (
+        ):(
           <div style={{padding:40,textAlign:"center"}} className="fade-in">
             <div style={{fontSize:44,marginBottom:16}}>✓</div>
             <h3 style={{color:"#fff",marginBottom:8,fontWeight:800}}>Report submitted</h3>
@@ -178,7 +221,7 @@ function DonateModal({campaign, onClose, onShowTos}) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...card,width:"100%",maxWidth:420,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
+      <div style={{...cardStyle,width:"100%",maxWidth:420,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#111118",zIndex:1}}>
           <div>
             <div style={{fontSize:10,color:"#ff4444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Donating to</div>
@@ -305,7 +348,7 @@ function CreateModal({onClose, onCreate, onShowTos}) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...card,width:"100%",maxWidth:460,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
+      <div style={{...cardStyle,width:"100%",maxWidth:460,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#111118",zIndex:1}}>
           <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Start a Campaign</h2>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
@@ -353,9 +396,7 @@ function CreateModal({onClose, onCreate, onShowTos}) {
             </label>
             {err&&<div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
             <button onClick={create} style={primaryBtn({marginTop:4})}>🚀 Launch Campaign</button>
-            <div style={{fontSize:10,color:"#1e1e2e",textAlign:"center",lineHeight:1.6}}>
-              Once live, only you can deactivate your campaign.<br/>FundOff cannot. Courts cannot. Nobody else can.
-            </div>
+            <div style={{fontSize:10,color:"#1e1e2e",textAlign:"center",lineHeight:1.6}}>Once live, only you can deactivate your campaign.<br/>FundOff cannot. Courts cannot. Nobody else can.</div>
           </div>
         ):(
           <div style={{padding:44,textAlign:"center"}} className="fade-in">
@@ -374,7 +415,7 @@ function CreateModal({onClose, onCreate, onShowTos}) {
 function PricingModal({onClose}) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{...card,width:"100%",maxWidth:600,padding:28,maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
+      <div style={{...cardStyle,width:"100%",maxWidth:600,padding:28,maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
           <div>
             <h2 style={{margin:0,fontSize:20,fontWeight:800}}>Campaign Tiers</h2>
@@ -413,7 +454,7 @@ function CampaignCard({c, onDonate, onReport}) {
   const p = pct(c.totalRaisedUSDC,c.goalUSDC);
   const isElite = c.tier==="Elite";
   return (
-    <div style={{...card,position:"relative",overflow:"hidden",border:`1px solid ${hov?(isElite?"#ff8800":"#ff4444"):(isElite?"rgba(255,136,0,0.2)":"#1a1a28")}`,transform:hov?"translateY(-3px)":"translateY(0)",transition:"all 0.2s",cursor:"pointer"}}
+    <div style={{...cardStyle,position:"relative",overflow:"hidden",border:`1px solid ${hov?(isElite?"#ff8800":"#ff4444"):(isElite?"rgba(255,136,0,0.2)":"#1a1a28")}`,transform:hov?"translateY(-3px)":"translateY(0)",transition:"all 0.2s",cursor:"pointer"}}
       onMouseEnter={()=>setHov(true)} onMouseLeave={()=>{setHov(false);setMenu(false);}}>
       {isElite&&<div style={{position:"absolute",top:12,right:44,zIndex:2,background:"linear-gradient(90deg,#ff8800,#ffcc00)",color:"#000",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:99,letterSpacing:0.5}}>⭐ FEATURED</div>}
       <button onClick={e=>{e.stopPropagation();setMenu(!menu);}} style={{position:"absolute",top:12,right:12,zIndex:3,background:"rgba(0,0,0,0.6)",border:"1px solid #222",borderRadius:6,padding:"4px 8px",cursor:"pointer",color:"#555",fontSize:12,backdropFilter:"blur(4px)"}} title="Report campaign">⚑</button>
@@ -432,7 +473,7 @@ function CampaignCard({c, onDonate, onReport}) {
           <h3 style={{margin:"0 0 8px",fontSize:15,fontWeight:700,color:"#fff",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{c.title}</h3>
           <p style={{margin:"0 0 14px",fontSize:12,color:"#555",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{c.description}</p>
           <div style={{background:"#111",borderRadius:99,height:5,marginBottom:10,overflow:"hidden"}}>
-            <div style={{width:`${p}%`,height:"100%",background:isElite?"linear-gradient(90deg,#ff8800,#ffcc00)":"linear-gradient(90deg,#ff4444,#ff8800)",borderRadius:99,transition:"width 1s ease"}}/>
+            <div style={{width:`${p}%`,height:"100%",background:isElite?"linear-gradient(90deg,#ff8800,#ffcc00)":"linear-gradient(90deg,#ff4444,#ff8800)",borderRadius:99}}/>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
             <div>
@@ -476,6 +517,19 @@ function App() {
   const [showCreate, setShowCreate] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [showTos, setShowTos] = useState(false);
+  const [showBanner, setShowBanner] = useState(false);
+  const [tosFromBanner, setTosFromBanner] = useState(false);
+
+  // Show banner if user hasn't agreed yet
+  useEffect(()=>{
+    const agreed = localStorage.getItem(TERMS_KEY);
+    if(!agreed) setShowBanner(true);
+  },[]);
+
+  const acceptTerms = () => {
+    localStorage.setItem(TERMS_KEY, "true");
+    setShowBanner(false);
+  };
 
   const visible  = campaigns.filter(c=>c.active&&!c.hidden);
   const featured = visible.filter(c=>c.featuredHomepage);
@@ -484,7 +538,7 @@ function App() {
   const totalDonors = visible.reduce((s,c)=>s+c.donationCount,0);
 
   return (
-    <div style={{minHeight:"100vh",background:"#09090f"}}>
+    <div style={{minHeight:"100vh",background:"#09090f",paddingBottom:showBanner?80:0}}>
 
       {/* Nav */}
       <nav style={{borderBottom:"1px solid #0f0f18",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:60,position:"sticky",top:0,zIndex:100,background:"rgba(9,9,15,0.97)",backdropFilter:"blur(16px)"}}>
@@ -494,7 +548,7 @@ function App() {
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <button onClick={()=>setShowPricing(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600})}>Pricing</button>
-          <button onClick={()=>setShowTos(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600})}>Terms</button>
+          <button onClick={()=>{setTosFromBanner(false);setShowTos(true);}} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600})}>Terms</button>
           <button onClick={()=>setShowCreate(true)} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"linear-gradient(90deg,#ff4444,#ff8800)",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Start Campaign</button>
         </div>
       </nav>
@@ -511,7 +565,7 @@ function App() {
         </p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,maxWidth:380,margin:"0 auto 36px"}}>
           {[{label:"Total Raised",val:totalRaised>0?fmt(totalRaised):"$0"},{label:"Total Donors",val:totalDonors>0?totalDonors.toLocaleString():"0"},{label:"Campaigns",val:visible.length}].map(s=>(
-            <div key={s.label} style={{...card,padding:"16px 10px"}}>
+            <div key={s.label} style={{...cardStyle,padding:"16px 10px"}}>
               <div style={{fontSize:22,fontWeight:800,color:"#ff4444"}}>{s.val}</div>
               <div style={{fontSize:10,color:"#2a2a3a",marginTop:3,fontWeight:500}}>{s.label}</div>
             </div>
@@ -558,7 +612,7 @@ function App() {
         <div style={{fontSize:12,color:"#2a2a3a",marginBottom:8}}>
           <span style={{color:"#ff4444",fontWeight:700,fontSize:14}}>FundOff</span>
           {" · "}
-          <span style={{cursor:"pointer",color:"#333"}} onClick={()=>setShowTos(true)}>Terms of Service</span>
+          <span style={{cursor:"pointer",color:"#333"}} onClick={()=>{setTosFromBanner(false);setShowTos(true);}}>Terms of Service</span>
           {" · "}
           <a href="/privacy.html" style={{color:"#333",textDecoration:"none"}}>Privacy Policy</a>
           {" · "}
@@ -567,16 +621,24 @@ function App() {
           <a href="mailto:hello@fundoff.org" style={{color:"#333",textDecoration:"none"}}>Contact</a>
         </div>
         <div style={{fontSize:10,color:"#111",fontFamily:"monospace"}}>
-          Contract: {CONTRACT} · FundOff DAO LLC · Wyoming
+          Contract: {CONTRACT} · FundOff · Wyoming
         </div>
       </div>
 
+      {/* Terms Banner — shows on first visit */}
+      {showBanner&&(
+        <TermsBanner
+          onAccept={acceptTerms}
+          onViewTos={()=>{setTosFromBanner(true);setShowTos(true);}}
+        />
+      )}
+
       {/* Modals */}
-      {donating&&<DonateModal campaign={donating} onClose={()=>setDonating(null)} onShowTos={()=>setShowTos(true)}/>}
+      {donating&&<DonateModal campaign={donating} onClose={()=>setDonating(null)} onShowTos={()=>{setTosFromBanner(false);setShowTos(true);}}/>}
       {reporting&&<ReportModal campaign={reporting} onClose={()=>setReporting(null)}/>}
-      {showCreate&&<CreateModal onClose={()=>setShowCreate(false)} onCreate={c=>setCampaigns(p=>[c,...p])} onShowTos={()=>setShowTos(true)}/>}
+      {showCreate&&<CreateModal onClose={()=>setShowCreate(false)} onCreate={c=>setCampaigns(p=>[c,...p])} onShowTos={()=>{setTosFromBanner(false);setShowTos(true);}}/>}
       {showPricing&&<PricingModal onClose={()=>setShowPricing(false)}/>}
-      {showTos&&<TosModal onClose={()=>setShowTos(false)}/>}
+      {showTos&&<TosModal onClose={()=>setShowTos(false)} onAccept={tosFromBanner?acceptTerms:null} showAcceptBtn={tosFromBanner}/>}
     </div>
   );
 }
