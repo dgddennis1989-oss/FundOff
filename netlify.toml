@@ -1,0 +1,8 @@
+{
+  "name": "fundoff",
+  "version": "1.0.0",
+  "description": "FundOff — Uncensorable Donation Platform",
+  "dependencies": {
+    "stripe": "^14.0.0"
+  }
+}
