@@ -14,6 +14,7 @@
   <meta name="twitter:description" content="No judges. No freezes. No middlemen. Campaigns live on the blockchain forever."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <script src="https://js.stripe.com/v3/"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
@@ -39,6 +40,9 @@
 const { useState, useEffect } = React;
 
 const CONTRACT     = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
+const STRIPE_PK    = "pk_live_51ThbNgIgV5bYQ9TsT0ac5sADVMBwrgNdJ2maThtKLMLb5xVZV8Iyf8uNyqSzfJtaVzogkBs7ikTKp8A06T7kOAVs00Z7WulBto";
+let _stripe = null;
+const getStripe = () => { if(!_stripe && window.Stripe) _stripe = window.Stripe(STRIPE_PK); return _stripe; };
 const REPORT_EMAIL = "reports@fundoff.org";
 const TERMS_KEY    = "fundoff_terms_agreed_v1";
 const WAITLIST_KEY = "fundoff_waitlist_joined";
@@ -624,8 +628,41 @@ function DonateModal({campaign,onClose,onShowTos}) {
   const pay=async()=>{
     if(method==="card"&&(!email||!cardN||!exp||!cvv)){setErr("Please fill in all fields");return;}
     setErr("");setProcessing(true);
-    await new Promise(r=>setTimeout(r,2000));
-    setProcessing(false);setStep(3);
+    try {
+      const amountCents = Math.round(amtNum * 100);
+      // Create payment intent via Netlify function
+      const res = await fetch('/api/create-payment-intent', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          amount: amountCents,
+          campaignId: campaign.id,
+          campaignTitle: campaign.title,
+          message,
+        }),
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error||'Payment failed');
+
+      // Confirm card payment with Stripe
+      const elements = stripe.elements();
+      const cardElement = elements.create('card', {
+        style:{base:{color:'#fff',fontFamily:'Inter,sans-serif',fontSize:'15px','::placeholder':{color:'#333'}}},
+      });
+
+      const {error, paymentIntent} = await getStripe().confirmCardPayment(data.clientSecret, {
+        payment_method:{
+          card: cardElement,
+          billing_details:{email},
+        },
+      });
+
+      if(error) throw new Error(error.message);
+      setProcessing(false);setStep(3);
+    } catch(e) {
+      setErr(e.message||'Payment failed. Please try again.');
+      setProcessing(false);
+    }
   };
 
   return (
