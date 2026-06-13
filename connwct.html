@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — FundOff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #09090f; color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 99px; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+    .fade { animation: fadeIn 0.3s ease forwards; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+// ─── Mock Data ────────────────────────────────────────────────────────────────
+const STATS = {
+  totalRaised:    47284.50,
+  platformFees:     945.69,
+  activeCampaigns:      3,
+  totalDonors:        847,
+  pendingReports:       2,
+  pendingVerify:        3,
+  monthlyRevenue:    312.40,
+  weeklyGrowth:       23.4,
+};
+
+const CAMPAIGNS = [
+  { id:"1749756000000", title:"Help Bryan & Ed Recover LEGO Collection", raised:15847.20, goal:20000, donors:312, tier:"Elite", verify:"manual", active:true,  reported:false, created:"Jun 12" },
+  { id:"1749756100000", title:"Independent Journalist Legal Defense",     raised:3200.00,  goal:5000,  donors:89,  tier:"Pro",   verify:"social", active:true,  reported:false, created:"Jun 12" },
+  { id:"1749756200000", title:"Whistleblower Defense Fund",               raised:4100.00,  goal:10000, donors:203, tier:"Free",  verify:"none",   active:true,  reported:true,  created:"Jun 12" },
+];
+
+const REPORTS = [
+  { id:1, campaignId:"1749756200000", campaignTitle:"Whistleblower Defense Fund", reason:"Misleading information", details:"Claims appear unverifiable", reportedAt:"2h ago", status:"pending" },
+  { id:2, campaignId:"9999999999999", campaignTitle:"Emergency Medical Fund",      reason:"Fraud or scam",          details:"Recipient wallet belongs to known scammer", reportedAt:"5h ago", status:"pending" },
+];
+
+const VERIFY_QUEUE = [
+  { id:1, campaignId:"1749756100000", campaignTitle:"Independent Journalist Legal Defense", platform:"twitter",   handle:"journalistmike",  proofUrl:"https://twitter.com/journalistmike/status/123", requestedAt:"1h ago" },
+  { id:2, campaignId:"8888888888888", campaignTitle:"Community Food Bank Emergency",        platform:"instagram", handle:"communityfoodbank", proofUrl:"https://instagram.com/p/abc123",              requestedAt:"3h ago" },
+  { id:3, campaignId:"7777777777777", campaignTitle:"Single Mom Housing Fund",              platform:"facebook",  handle:"sarahj2024",        proofUrl:"https://facebook.com/posts/456",              requestedAt:"6h ago" },
+];
+
+const RECENT_FEES = [
+  { campaign:"Bryan & Ed LEGO", amount:9.94,   time:"2 mins ago",  method:"card"   },
+  { campaign:"Journalist Fund",  amount:2.00,   time:"14 mins ago", method:"apple"  },
+  { campaign:"Bryan & Ed LEGO", amount:1.00,   time:"31 mins ago", method:"card"   },
+  { campaign:"Bryan & Ed LEGO", amount:5.00,   time:"1h ago",      method:"crypto" },
+  { campaign:"Whistleblower",   amount:0.40,   time:"1h ago",      method:"card"   },
+];
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+const fmt  = n => `$${n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const pct  = (r,g) => Math.min(100,Math.round((r/g)*100));
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, sub, accent, icon, alert }) {
+  return (
+    <div style={{
+      background:"#111118",
+      border:`1px solid ${alert?"rgba(255,68,68,0.3)":"#1a1a28"}`,
+      borderRadius:14,padding:"18px 20px",
+      display:"flex",flexDirection:"column",gap:8,
+      position:"relative",
+    }}>
+      {alert&&<div style={{position:"absolute",top:12,right:12,width:8,height:8,borderRadius:"50%",background:"#ff4444",animation:"pulse 1.5s ease infinite"}}/>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <span style={{fontSize:10,fontWeight:600,color:"#444",textTransform:"uppercase",letterSpacing:0.8}}>{label}</span>
+        <span style={{fontSize:18}}>{icon}</span>
+      </div>
+      <div style={{fontSize:26,fontWeight:800,color:accent||"#fff",lineHeight:1}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:"#555"}}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Main Admin ───────────────────────────────────────────────────────────────
+function Admin() {
+  const [tab, setTab] = useState("overview");
+  const [reports, setReports] = useState(REPORTS);
+  const [verifyQueue, setVerifyQueue] = useState(VERIFY_QUEUE);
+  const [campaigns, setCampaigns] = useState(CAMPAIGNS);
+
+  const approveVerify = (id) => setVerifyQueue(q=>q.filter(v=>v.id!==id));
+  const denyVerify    = (id) => setVerifyQueue(q=>q.filter(v=>v.id!==id));
+  const dismissReport = (id) => setReports(r=>r.filter(v=>v.id!==id));
+  const hideFromSite  = (id) => {
+    setCampaigns(c=>c.map(camp=>camp.id===reports.find(r=>r.id===id)?.campaignId?{...camp,active:false}:camp));
+    setReports(r=>r.filter(v=>v.id!==id));
+  };
+
+  const tabs = ["overview","campaigns","reports","verify","revenue"];
+
+  return (
+    <div style={{minHeight:"100vh",background:"#09090f"}}>
+
+      {/* Nav */}
+      <nav style={{borderBottom:"1px solid #0f0f18",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,background:"rgba(9,9,15,0.97)",backdropFilter:"blur(16px)",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <a href="/" style={{display:"flex",alignItems:"center",gap:8,textDecoration:"none"}}>
+            <svg width="28" height="28" viewBox="0 0 68 68">
+              <circle cx="34" cy="34" r="34" fill="#0d0d14"/>
+              <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+              <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+              <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+              <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+            </svg>
+            <span style={{fontWeight:900,fontSize:16,color:"#fff",letterSpacing:-0.5}}>Fund<span style={{color:"#ff4444"}}>Off</span></span>
+          </a>
+          <span style={{color:"#1e1e2e",fontSize:14}}>/</span>
+          <span style={{fontSize:13,color:"#ff4444",fontWeight:700}}>Admin</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {reports.length>0&&<div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,68,68,0.1)",border:"1px solid rgba(255,68,68,0.2)",borderRadius:99,padding:"4px 10px"}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:"#ff4444",display:"inline-block",animation:"pulse 1.5s ease infinite"}}/>
+            <span style={{fontSize:11,color:"#ff4444",fontWeight:600}}>{reports.length} Reports Pending</span>
+          </div>}
+          <a href="/" style={{padding:"7px 14px",borderRadius:9,border:"1px solid #1e1e2e",background:"none",color:"#666",fontSize:12,fontWeight:500,textDecoration:"none"}}>← Back to Site</a>
+        </div>
+      </nav>
+
+      <div style={{maxWidth:1080,margin:"0 auto",padding:"28px 24px 80px"}}>
+
+        <div style={{marginBottom:24}}>
+          <h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Platform Overview</h1>
+          <p style={{fontSize:13,color:"#555"}}>FundOff LLC · fundoff.org · Contract: <span className="mono" style={{color:"#444",fontSize:11}}>0x3a6a...e752</span></p>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:2,marginBottom:28,borderBottom:"1px solid #111"}}>
+          {tabs.map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{
+              padding:"10px 18px",borderRadius:"10px 10px 0 0",border:"none",cursor:"pointer",
+              background:tab===t?"#111118":"none",
+              color:tab===t?"#fff":"#444",
+              fontSize:13,fontWeight:tab===t?700:500,
+              textTransform:"capitalize",
+              borderBottom:tab===t?"2px solid #ff4444":"2px solid transparent",
+              position:"relative",
+            }}>
+              {t}
+              {t==="reports"&&reports.length>0&&<span style={{marginLeft:6,background:"#ff4444",color:"#fff",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:99}}>{reports.length}</span>}
+              {t==="verify"&&verifyQueue.length>0&&<span style={{marginLeft:6,background:"#4488ff",color:"#fff",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:99}}>{verifyQueue.length}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* ── OVERVIEW ── */}
+        {tab==="overview"&&(
+          <div className="fade">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:24}}>
+              <StatCard label="Total Raised"     value={fmt(STATS.totalRaised)}    sub="all campaigns"         accent="#ff4444" icon="💰"/>
+              <StatCard label="Platform Revenue" value={fmt(STATS.platformFees)}   sub="2% fees collected"     accent="#22cc88" icon="📈"/>
+              <StatCard label="Active Campaigns" value={STATS.activeCampaigns}     sub="on Base blockchain"    accent="#fff"    icon="🛡"/>
+              <StatCard label="Total Donors"     value={STATS.totalDonors}         sub="all time"              accent="#fff"    icon="🤝"/>
+              <StatCard label="Pending Reports"  value={STATS.pendingReports}      sub="need review"           accent="#ff4444" icon="🚩" alert={STATS.pendingReports>0}/>
+              <StatCard label="Verify Queue"     value={STATS.pendingVerify}       sub="badge requests"        accent="#4488ff" icon="✓"  alert={STATS.pendingVerify>0}/>
+            </div>
+
+            {/* Recent fees */}
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,overflow:"hidden",marginBottom:16}}>
+              <div style={{padding:"16px 20px",borderBottom:"1px solid #0f0f18"}}>
+                <span style={{fontWeight:700,fontSize:14}}>Recent Platform Fees</span>
+                <span style={{fontSize:11,color:"#444",marginLeft:8}}>Your 2% revenue</span>
+              </div>
+              {RECENT_FEES.map((f,i)=>(
+                <div key={i} style={{padding:"12px 20px",borderBottom:i<RECENT_FEES.length-1?"1px solid #0a0a12":"none",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div>
+                    <div style={{fontSize:13,color:"#fff",fontWeight:500}}>{f.campaign}</div>
+                    <div style={{fontSize:11,color:"#333",marginTop:1}}>{f.time}</div>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:700,color:"#22cc88"}}>+{fmt(f.amount)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{background:"#0a0a12",border:"1px solid #111",borderRadius:12,padding:"14px 16px"}}>
+              <div style={{fontSize:11,color:"#333",lineHeight:1.7}}>
+                💡 Platform fees are automatically collected at the smart contract level. They flow directly to your treasury wallet: <span className="mono" style={{color:"#444"}}>0x3a6a...e752</span>. Withdraw anytime via MetaMask.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CAMPAIGNS ── */}
+        {tab==="campaigns"&&(
+          <div className="fade">
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,overflow:"hidden"}}>
+              <div style={{padding:"16px 20px",borderBottom:"1px solid #0f0f18",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontWeight:700,fontSize:14}}>All Campaigns</span>
+                <span style={{fontSize:12,color:"#444"}}>{campaigns.length} total</span>
+              </div>
+              {campaigns.map((c,i)=>(
+                <div key={c.id} style={{padding:"16px 20px",borderBottom:i<campaigns.length-1?"1px solid #0a0a12":"none"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+                        {/* Tier */}
+                        <span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:99,border:"1px solid #1e1e2e",color:c.tier==="Elite"?"#ff8800":c.tier==="Pro"?"#4488ff":"#555",textTransform:"uppercase",letterSpacing:0.8}}>{c.tier}</span>
+                        {/* Verify */}
+                        {c.verify!=="none"&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:99,border:"1px solid rgba(68,136,255,0.3)",color:"#4488ff",textTransform:"uppercase",letterSpacing:0.8}}>✓ Verified</span>}
+                        {/* Status */}
+                        <span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:99,border:`1px solid ${c.active?"rgba(34,204,136,0.3)":"rgba(255,68,68,0.3)"}`,color:c.active?"#22cc88":"#ff4444",textTransform:"uppercase",letterSpacing:0.8}}>{c.active?"Active":"Hidden"}</span>
+                        {/* Reported */}
+                        {c.reported&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:99,border:"1px solid rgba(255,68,68,0.3)",color:"#ff4444",background:"rgba(255,68,68,0.06)",textTransform:"uppercase",letterSpacing:0.8}}>🚩 Reported</span>}
+                      </div>
+                      <div style={{fontSize:14,fontWeight:600,color:"#fff",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.title}</div>
+                      <div style={{fontSize:11,color:"#444"}} className="mono">ID: {c.id}</div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontSize:15,fontWeight:700,color:"#ff4444"}}>{fmt(c.raised)}</div>
+                      <div style={{fontSize:11,color:"#444",marginTop:2}}>{pct(c.raised,c.goal)}% of {fmt(c.goal)}</div>
+                      <div style={{fontSize:11,color:"#333",marginTop:1}}>{c.donors} donors</div>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{marginTop:12,background:"#0a0a12",borderRadius:99,height:4,overflow:"hidden"}}>
+                    <div style={{width:`${pct(c.raised,c.goal)}%`,height:"100%",background:"linear-gradient(90deg,#ff4444,#ff8800)",borderRadius:99}}/>
+                  </div>
+                  {/* Actions */}
+                  <div style={{marginTop:10,display:"flex",gap:8}}>
+                    <a href={`/dashboard.html?id=${c.id}`} style={{fontSize:11,color:"#555",fontWeight:600,textDecoration:"none",padding:"5px 10px",borderRadius:7,border:"1px solid #1e1e2e"}}>View Dashboard</a>
+                    <button onClick={()=>setCampaigns(cs=>cs.map(x=>x.id===c.id?{...x,active:!x.active}:x))} style={{fontSize:11,color:c.active?"#ff4444":"#22cc88",fontWeight:600,background:"none",border:`1px solid ${c.active?"rgba(255,68,68,0.2)":"rgba(34,204,136,0.2)"}`,borderRadius:7,padding:"5px 10px",cursor:"pointer"}}>
+                      {c.active?"Hide from Site":"Restore"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── REPORTS ── */}
+        {tab==="reports"&&(
+          <div className="fade">
+            {reports.length===0?(
+              <div style={{textAlign:"center",padding:"60px 24px"}}>
+                <div style={{fontSize:48,marginBottom:16,opacity:0.3}}>🚩</div>
+                <h3 style={{color:"#fff",fontSize:18,fontWeight:800,marginBottom:8}}>No pending reports</h3>
+                <p style={{color:"#444",fontSize:13}}>All clear. Reports will appear here when users flag campaigns.</p>
+              </div>
+            ):(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                {reports.map(r=>(
+                  <div key={r.id} style={{background:"#111118",border:"1px solid rgba(255,68,68,0.2)",borderRadius:14,overflow:"hidden"}}>
+                    <div style={{padding:"14px 20px",borderBottom:"1px solid #0f0f18",display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:14}}>🚩</span>
+                      <span style={{fontWeight:700,fontSize:13,color:"#ff4444"}}>{r.reason}</span>
+                      <span style={{fontSize:11,color:"#333",marginLeft:"auto"}}>{r.reportedAt}</span>
+                    </div>
+                    <div style={{padding:"16px 20px"}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#fff",marginBottom:4}}>{r.campaignTitle}</div>
+                      <div style={{fontSize:11,color:"#555",marginBottom:4}} className="mono">Campaign ID: {r.campaignId}</div>
+                      <div style={{fontSize:12,color:"#666",lineHeight:1.6,marginBottom:16,background:"#0a0a12",borderRadius:8,padding:"10px 12px"}}>{r.details}</div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>dismissReport(r.id)} style={{flex:1,padding:"10px",borderRadius:9,border:"1px solid #1e1e2e",background:"none",color:"#666",fontSize:12,fontWeight:600,cursor:"pointer"}}>✓ Dismiss — No Violation</button>
+                        <button onClick={()=>hideFromSite(r.id)} style={{flex:1,padding:"10px",borderRadius:9,border:"none",background:"rgba(255,68,68,0.1)",color:"#ff4444",fontSize:12,fontWeight:700,cursor:"pointer",border:"1px solid rgba(255,68,68,0.2)"}}>🚫 Hide from Site</button>
+                      </div>
+                      <div style={{fontSize:10,color:"#2a2a3a",marginTop:8,textAlign:"center"}}>Hiding removes from fundoff.org frontend only. The blockchain contract cannot be affected.</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── VERIFY QUEUE ── */}
+        {tab==="verify"&&(
+          <div className="fade">
+            {verifyQueue.length===0?(
+              <div style={{textAlign:"center",padding:"60px 24px"}}>
+                <div style={{fontSize:48,marginBottom:16,opacity:0.3}}>✓</div>
+                <h3 style={{color:"#fff",fontSize:18,fontWeight:800,marginBottom:8}}>Queue is clear</h3>
+                <p style={{color:"#444",fontSize:13}}>Verification requests will appear here when campaign creators apply.</p>
+              </div>
+            ):(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                {verifyQueue.map(v=>(
+                  <div key={v.id} style={{background:"#111118",border:"1px solid rgba(68,136,255,0.2)",borderRadius:14,overflow:"hidden"}}>
+                    <div style={{padding:"14px 20px",borderBottom:"1px solid #0f0f18",display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:14}}>✓</span>
+                      <span style={{fontWeight:700,fontSize:13,color:"#4488ff"}}>Social Verification Request</span>
+                      <span style={{fontSize:11,color:"#333",marginLeft:"auto"}}>{v.requestedAt}</span>
+                    </div>
+                    <div style={{padding:"16px 20px"}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#fff",marginBottom:4}}>{v.campaignTitle}</div>
+                      <div style={{fontSize:11,color:"#555",marginBottom:12}} className="mono">Campaign ID: {v.campaignId}</div>
+
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                        <div style={{background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:9,padding:"10px 12px"}}>
+                          <div style={{fontSize:10,color:"#444",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5,fontWeight:600}}>Platform</div>
+                          <div style={{fontSize:13,color:"#fff",fontWeight:600,textTransform:"capitalize"}}>{v.platform}</div>
+                        </div>
+                        <div style={{background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:9,padding:"10px 12px"}}>
+                          <div style={{fontSize:10,color:"#444",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5,fontWeight:600}}>Handle</div>
+                          <div style={{fontSize:13,color:"#fff",fontWeight:600}}>@{v.handle}</div>
+                        </div>
+                      </div>
+
+                      <a href={v.proofUrl} target="_blank" rel="noopener noreferrer" style={{display:"block",background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:9,padding:"10px 12px",marginBottom:14,fontSize:12,color:"#4488ff",textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        🔗 {v.proofUrl}
+                      </a>
+
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>denyVerify(v.id)} style={{flex:1,padding:"10px",borderRadius:9,border:"1px solid #1e1e2e",background:"none",color:"#666",fontSize:12,fontWeight:600,cursor:"pointer"}}>✕ Deny</button>
+                        <button onClick={()=>approveVerify(v.id)} style={{flex:2,padding:"10px",borderRadius:9,border:"none",background:"linear-gradient(90deg,#4488ff,#6644ff)",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>✓ Approve — Add Badge</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── REVENUE ── */}
+        {tab==="revenue"&&(
+          <div className="fade" style={{display:"flex",flexDirection:"column",gap:16}}>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+              <StatCard label="All Time Revenue" value={fmt(STATS.platformFees)}    sub="2% platform fees"      accent="#22cc88" icon="💰"/>
+              <StatCard label="This Month"        value={fmt(STATS.monthlyRevenue)}  sub="June 2026"             accent="#fff"    icon="📅"/>
+              <StatCard label="Weekly Growth"     value={`+${STATS.weeklyGrowth}%`} sub="vs last week"          accent="#ffcc00" icon="📈"/>
+            </div>
+
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,overflow:"hidden"}}>
+              <div style={{padding:"16px 20px",borderBottom:"1px solid #0f0f18"}}>
+                <span style={{fontWeight:700,fontSize:14}}>Revenue by Campaign</span>
+              </div>
+              {CAMPAIGNS.map((c,i)=>{
+                const fee = c.raised * (c.tier==="Elite"?0.005:c.tier==="Pro"?0.01:0.02);
+                return (
+                  <div key={c.id} style={{padding:"14px 20px",borderBottom:i<CAMPAIGNS.length-1?"1px solid #0a0a12":"none",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.title}</div>
+                      <div style={{fontSize:11,color:"#444",marginTop:2}}>{c.tier} tier · {c.tier==="Elite"?"0.5%":c.tier==="Pro"?"1%":"2%"} fee</div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"#22cc88"}}>{fmt(fee)}</div>
+                      <div style={{fontSize:11,color:"#444",marginTop:1}}>from {fmt(c.raised)} raised</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,padding:"20px 22px"}}>
+              <div style={{fontSize:11,color:"#444",textTransform:"uppercase",letterSpacing:0.8,fontWeight:600,marginBottom:14}}>Treasury Wallet</div>
+              <div style={{background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <span style={{fontSize:18}}>⟠</span>
+                <span className="mono" style={{fontSize:11,color:"#aaa",flex:1}}>0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752</span>
+                <a href="https://basescan.org/address/0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752" target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#ff4444",fontWeight:600,textDecoration:"none",flexShrink:0}}>View on Basescan →</a>
+              </div>
+              <div style={{fontSize:11,color:"#333",lineHeight:1.7}}>Platform fees accumulate in this wallet on Base blockchain. Withdraw anytime using MetaMask. No minimum. No fees to withdraw (only Base gas — fractions of a cent).</div>
+            </div>
+          </div>
+        )}
+
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}`}</style>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Admin/>);
+</script>
+</body>
+</html>
