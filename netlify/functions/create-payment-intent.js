@@ -1,6 +1,17 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+      body: '',
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
@@ -10,11 +21,6 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
   };
-
-  // Handle preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
-  }
 
   try {
     const { amount, campaignId, campaignTitle, message } = JSON.parse(event.body);
@@ -29,39 +35,24 @@ exports.handler = async (event) => {
 
     const platformFee = Math.round(amount * 0.02);
 
-    // Create Stripe Checkout Session instead of PaymentIntent
-    // This uses Stripe's hosted payment page - no frontend Stripe.js needed
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `Donation to: ${campaignTitle}`,
-            description: message || 'FundOff Campaign Donation',
-          },
-          unit_amount: amount,
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: `https://fundoff.org?donation=success&campaign=${campaignId}&amount=${amount}`,
-      cancel_url: `https://fundoff.org?donation=cancelled`,
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'usd',
+      automatic_payment_methods: { enabled: true },
       metadata: {
         campaignId,
         campaignTitle,
         message: message || '',
         platformFee,
-        fundoffVersion: '1.0',
       },
+      description: `FundOff donation to: ${campaignTitle}`,
     });
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        sessionId: session.id,
-        checkoutUrl: session.url,
+        clientSecret: paymentIntent.client_secret,
         platformFee,
         recipientAmount: amount - platformFee,
       }),
