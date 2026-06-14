@@ -40,21 +40,14 @@
 const { useState, useEffect } = React;
 
 const CONTRACT     = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
-const STRIPE_PK    = "pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz";
-let _stripe = null;
-const getStripe = async () => {
-  if(_stripe) return _stripe;
-  // Wait for Stripe.js to load if needed
-  if(!window.Stripe) {
-    await new Promise(resolve => {
-      const check = setInterval(() => {
-        if(window.Stripe) { clearInterval(check); resolve(); }
-      }, 50);
-      setTimeout(() => { clearInterval(check); resolve(); }, 3000);
-    });
+const STRIPE_PK    = "pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz
+// Stripe loads synchronously from CDN before React starts
+// Access it directly from window when needed
+const getStripe = () => {
+  if(typeof window !== "undefined" && window.Stripe) {
+    return window.Stripe(STRIPE_PK);
   }
-  if(window.Stripe) _stripe = window.Stripe(STRIPE_PK);
-  return _stripe;
+  return null;
 };
 const REPORT_EMAIL = "reports@fundoff.org";
 const TERMS_KEY    = "fundoff_terms_agreed_v1";
@@ -663,7 +656,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
         style:{base:{color:'#fff',fontFamily:'Inter,sans-serif',fontSize:'15px','::placeholder':{color:'#333'}}},
       });
 
-      const stripeInstance = await getStripe();
+      const stripeInstance = getStripe();
       if(!stripeInstance) throw new Error('Payment system unavailable. Please refresh and try again.');
       const {error, paymentIntent} = await stripeInstance.confirmCardPayment(data.clientSecret, {
         payment_method:{
