@@ -397,7 +397,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
   const currentStep=step<=3?step:3;
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}}>
       <div style={{...cardStyle,width:"100%",maxWidth:480,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
 
         {/* Header */}
