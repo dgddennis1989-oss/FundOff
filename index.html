@@ -632,11 +632,9 @@ function DonateModal({campaign,onClose,onShowTos}) {
     setErr("");setStep(2);
   };
   const pay=async()=>{
-    if(method==="card"&&(!email||!cardN||!exp||!cvv)){setErr("Please fill in all fields");return;}
     setErr("");setProcessing(true);
     try {
       const amountCents = Math.round(amtNum * 100);
-      // Create payment intent via Netlify function
       const res = await fetch('/api/create-payment-intent', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -649,24 +647,12 @@ function DonateModal({campaign,onClose,onShowTos}) {
       });
       const data = await res.json();
       if(!res.ok) throw new Error(data.error||'Payment failed');
-
-      // Confirm card payment with Stripe
-      const elements = stripe.elements();
-      const cardElement = elements.create('card', {
-        style:{base:{color:'#fff',fontFamily:'Inter,sans-serif',fontSize:'15px','::placeholder':{color:'#333'}}},
-      });
-
-      const stripeInstance = getStripe();
-      if(!stripeInstance) throw new Error('Payment system unavailable. Please refresh and try again.');
-      const {error, paymentIntent} = await stripeInstance.confirmCardPayment(data.clientSecret, {
-        payment_method:{
-          card: cardElement,
-          billing_details:{email},
-        },
-      });
-
-      if(error) throw new Error(error.message);
-      setProcessing(false);setStep(3);
+      // Redirect to Stripe hosted checkout - no frontend Stripe.js needed
+      if(data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        setProcessing(false);setStep(3);
+      }
     } catch(e) {
       setErr(e.message||'Payment failed. Please try again.');
       setProcessing(false);
