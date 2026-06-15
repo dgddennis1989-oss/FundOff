@@ -162,7 +162,7 @@ function VerifyBadge({level,socialHandle,onClick}) {
 function VerifyInfoModal({campaign,onClose}) {
   const v=VERIFY[campaign.verifyLevel]||VERIFY.none;
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:400,overflow:"hidden"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <h3 style={{margin:0,fontSize:16,fontWeight:800}}>Campaign Verification</h3>
@@ -207,7 +207,7 @@ function VerifyRequestModal({onClose}) {
     setSent(true);
   };
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:440,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><h3 style={{margin:0,fontSize:16,fontWeight:800}}>Get Verified</h3><div style={{fontSize:11,color:"#555",marginTop:3}}>Build donor trust with a verified badge</div></div>
@@ -295,7 +295,7 @@ function TosModal({onClose,onAccept,showAcceptBtn}) {
     {t:"11. Contact",b:`Violations: ${REPORT_EMAIL}\nOther: hello@fundoff.org`},
   ];
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:640,maxHeight:"88vh",overflow:"hidden",display:"flex",flexDirection:"column"}} className="fade-in">
         <div style={{padding:"18px 24px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Terms of Service</h2>
@@ -329,7 +329,7 @@ function ReportModal({campaign,onClose}) {
     setSent(true);
   };
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:420,overflow:"hidden"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontSize:10,color:"#ff4444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Report Campaign</div><div style={{fontSize:14,fontWeight:700,color:"#fff",maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{campaign.title}</div></div>
@@ -628,10 +628,18 @@ function DonateModal({campaign,onClose,onShowTos}) {
           const s=window.Stripe("pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz");
           const els=s.elements();
           const card=els.create('card',{style:{base:{color:'#fff',fontFamily:'Inter,sans-serif',fontSize:'15px','::placeholder':{color:'#555'}},invalid:{color:'#ff4444'}}});
-          setTimeout(()=>{
+          // Give React time to render the DOM element before mounting
+          const tryMount = (attempts=0) => {
             const el=document.getElementById('stripe-card-el');
-            if(el){card.mount(el);cardRef.current=card;stripeRef.current=s;}
-          },100);
+            if(el){
+              card.mount(el);
+              cardRef.current=card;
+              stripeRef.current=s;
+            } else if(attempts < 20) {
+              setTimeout(()=>tryMount(attempts+1), 100);
+            }
+          };
+          tryMount();
           card.on('change',e=>{if(e.error)setStripeErr(e.error.message);else setStripeErr("");});
         }catch(e){console.error(e);}
       };
@@ -668,9 +676,12 @@ function DonateModal({campaign,onClose,onShowTos}) {
       const data=await res.json();
       if(!res.ok) throw new Error(data.error||'Payment failed');
 
-      if(method==="card"&&stripeRef.current&&cardRef.current){
+      if(method==="card"){
         // Step 2: Confirm with Stripe Elements card
-        const {error,paymentIntent}=await stripeRef.current.confirmCardPayment(data.clientSecret,{
+        if(!stripeRef.current||!cardRef.current){
+          throw new Error('Card form not ready. Please wait a moment and try again.');
+        }
+        const {error}=await stripeRef.current.confirmCardPayment(data.clientSecret,{
           payment_method:{card:cardRef.current,billing_details:{email}},
         });
         if(error) throw new Error(error.message);
@@ -683,7 +694,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:420,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#111118",zIndex:1}}>
           <div style={{flex:1,minWidth:0}}>
@@ -759,7 +770,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
 // ─── Pricing Modal ────────────────────────────────────────────────────────────
 function PricingModal({onClose}) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:600,padding:28,maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
           <div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>Campaign Tiers</h2><p style={{color:"#444",fontSize:12,marginTop:4}}>Lower fees. More visibility. Same unstoppable protection.</p></div>
