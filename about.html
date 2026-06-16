@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>About — FundOff</title>
+  <meta name="description" content="FundOff was built by two people in Ohio who got tired of watching fundraising platforms cave to lawyers."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #09090f; color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; line-height: 1.7; }
+    a { color: #ff4444; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 99px; }
+
+    nav {
+      border-bottom: 1px solid #0f0f18;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,15,0.97);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-text { font-weight: 900; font-size: 19px; letter-spacing: -0.5px; color: #fff; }
+    .logo-text span { color: #ff4444; }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 64px 24px 100px; }
+
+    h1 { font-size: clamp(28px, 5vw, 44px); font-weight: 900; letter-spacing: -1px; line-height: 1.1; margin-bottom: 20px; }
+    h2 { font-size: 22px; font-weight: 800; margin: 48px 0 14px; color: #fff; }
+    p { color: #777; font-size: 16px; margin-bottom: 18px; }
+    p strong { color: #fff; font-weight: 600; }
+
+    .lead { font-size: 18px; color: #aaa; line-height: 1.8; margin-bottom: 32px; }
+
+    .divider { border: none; border-top: 1px solid #111; margin: 48px 0; }
+
+    .fact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 24px 0;
+    }
+    .fact {
+      background: #111118;
+      border: 1px solid #1a1a28;
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .fact-label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-bottom: 6px; }
+    .fact-value { font-size: 13px; color: #aaa; font-family: 'Courier New', monospace; }
+
+    .quote-block {
+      border-left: 3px solid #ff4444;
+      padding: 16px 20px;
+      margin: 28px 0;
+      background: rgba(255,68,68,0.04);
+      border-radius: 0 10px 10px 0;
+    }
+    .quote-block p { color: #aaa; font-size: 15px; margin: 0; font-style: italic; }
+
+    .person-card {
+      background: #111118;
+      border: 1px solid #1a1a28;
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      margin: 16px 0;
+    }
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff4444, #ff8800);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 900;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .person-name { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+    .person-title { font-size: 11px; color: #ff4444; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+    .person-bio { font-size: 13px; color: #666; line-height: 1.7; margin: 0; }
+
+    .verify-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .verify-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #111118;
+      border: 1px solid #1a1a28;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .verify-icon { font-size: 18px; flex-shrink: 0; }
+    .verify-label { font-size: 13px; color: #aaa; }
+    .verify-label strong { color: #fff; }
+    .verify-link { margin-left: auto; font-size: 11px; color: #ff4444; font-weight: 600; flex-shrink: 0; }
+
+    .contract-box {
+      background: #0a0a12;
+      border: 1px solid #111;
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #444;
+      word-break: break-all;
+      margin: 16px 0;
+    }
+    .contract-box span { color: #ff4444; }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(255,68,68,0.08), rgba(255,136,0,0.08));
+      border: 1px solid rgba(255,68,68,0.2);
+      border-radius: 14px;
+      padding: 28px;
+      text-align: center;
+      margin-top: 48px;
+    }
+    .cta-box h3 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+    .cta-box p { color: #666; font-size: 14px; margin-bottom: 20px; }
+    .btn-primary {
+      display: inline-block;
+      padding: 13px 28px;
+      border-radius: 11px;
+      background: linear-gradient(90deg, #ff4444, #ff8800);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    footer { border-top: 1px solid #0d0d15; padding: 24px; text-align: center; font-size: 12px; color: #2a2a3a; }
+    footer a { color: #333; }
+
+    @media (max-width: 600px) {
+      .fact-grid { grid-template-columns: 1fr; }
+      .person-card { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">
+    <svg width="32" height="32" viewBox="0 0 68 68">
+      <circle cx="34" cy="34" r="34" fill="#0d0d14"/>
+      <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+      <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+      <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+      <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+    </svg>
+    <span class="logo-text">Fund<span>Off</span></span>
+  </a>
+  <a href="/" style="font-size:13px;color:#555;font-weight:500;">Back to FundOff</a>
+</nav>
+
+<div class="container">
+
+  <h1>We built the thing<br/>GoFundMe can't build.</h1>
+
+  <p class="lead">
+    FundOff was built by two people in Ohio who got tired of watching fundraising platforms cave to lawyers. The whole thing took one day. The smart contract has never lied to anyone. Mostly because smart contracts can't lie. Unlike corporations.
+  </p>
+
+  <hr class="divider"/>
+
+  <h2>The story</h2>
+
+  <p>
+    In June 2026 a judge issued a court order and GoFundMe took down a campaign that had raised over $454,000 from thousands of donors. A family lost access to money people had freely given them. The platform had no choice but to comply. That's what happens when a corporation sits between donors and recipients.
+  </p>
+
+  <p>
+    We watched that happen and got mad. Then we got to work.
+  </p>
+
+  <div class="quote-block">
+    <p>"We cannot take down your campaign. We cannot freeze your funds. We cannot comply with a court order to remove your donations. Not because we wouldn't. Because we literally built it so we can't."</p>
+  </div>
+
+  <p>
+    The smart contract that runs FundOff is non-upgradeable. Ownership is renounced. There is no admin key. There is no off switch. When someone donates through FundOff the money moves directly from their card to the recipient's account. We never touch it. We built it that way on purpose because we don't trust ourselves with your money either.
+  </p>
+
+  <hr class="divider"/>
+
+  <h2>Verify everything</h2>
+
+  <p>Don't trust us. Verify us. Here is everything you need to confirm FundOff is real:</p>
+
+  <div class="verify-grid">
+    <div class="verify-item">
+      <span class="verify-icon">🏛</span>
+      <div class="verify-label">
+        <strong>FundOff LLC</strong><br/>
+        Registered in Wyoming, June 12, 2026
+      </div>
+      <a href="https://wyobiz.wyo.gov" target="_blank" rel="noopener noreferrer" class="verify-link">Verify on Wyoming SOS</a>
+    </div>
+    <div class="verify-item">
+      <span class="verify-icon">🏦</span>
+      <div class="verify-label">
+        <strong>EIN: 42-3141020</strong><br/>
+        Federal tax ID issued by the IRS
+      </div>
+    </div>
+    <div class="verify-item">
+      <span class="verify-icon">📍</span>
+      <div class="verify-label">
+        <strong>530 Bridgeford Dr, Westerville, Ohio 43081</strong><br/>
+        Real address. Real people.
+      </div>
+    </div>
+    <div class="verify-item">
+      <span class="verify-icon">⛓</span>
+      <div class="verify-label">
+        <strong>Smart contract on Base blockchain</strong><br/>
+        Publicly readable. Verified source code.
+      </div>
+      <a href="https://basescan.org/address/0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752" target="_blank" rel="noopener noreferrer" class="verify-link">View on Basescan</a>
+    </div>
+    <div class="verify-item">
+      <span class="verify-icon">💻</span>
+      <div class="verify-label">
+        <strong>Open source code</strong><br/>
+        Every line we wrote is public on GitHub
+      </div>
+      <a href="https://github.com/dgddennis1989-oss/FundOff" target="_blank" rel="noopener noreferrer" class="verify-link">View on GitHub</a>
+    </div>
+  </div>
+
+  <div class="contract-box">
+    Smart contract: <span>0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752</span><br/>
+    Network: Base (Ethereum L2)<br/>
+    Upgradeable: No<br/>
+    Admin keys: None<br/>
+    Owner: Renounced
+  </div>
+
+  <hr class="divider"/>
+
+  <h2>The team</h2>
+
+  <p>We are two people. We will tell you exactly who we are.</p>
+
+  <div class="person-card">
+    <div class="avatar">M</div>
+    <div>
+      <div class="person-name">Matthew Tobey</div>
+      <div class="person-title">Founder and CEO</div>
+      <p class="person-bio">
+        Built FundOff in one day after watching $454,000 disappear from a GoFundMe overnight. By day I work a regular job. By evenings I am apparently a fintech founder. I am told by everyone who knows me that I am kind of a jerk. This is true. I am also, paradoxically, the person who will actually respond to your email at hello@fundoff.org. I built this because I was genuinely angry about what happened and I had the skills to do something about it. That is the whole story.
+      </p>
+    </div>
+  </div>
+
+  <div class="person-card">
+    <div class="avatar">N</div>
+    <div>
+      <div class="person-name">Nicholette Behn</div>
+      <div class="person-title">Customer Support and Social Media</div>
+      <p class="person-bio">
+        Significantly nicer than Matthew. Handles all customer support emails, social media, and the parts of running a company that require actual human decency. If you have emailed hello@fundoff.org and received a warm helpful response that was probably her. If you received a technically accurate but slightly sarcastic response that was probably Matthew.
+      </p>
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <h2>What we can and cannot do</h2>
+
+  <p>Most platforms bury this. We are putting it front and center.</p>
+
+  <div class="verify-grid">
+    <div class="verify-item" style="border-color: rgba(34,204,136,0.2);">
+      <span class="verify-icon">✅</span>
+      <div class="verify-label">
+        <strong>We CAN remove campaigns from our website</strong><br/>
+        If a campaign violates our Terms of Service we remove it from fundoff.org. This is our right as a company.
+      </div>
+    </div>
+    <div class="verify-item" style="border-color: rgba(255,68,68,0.2);">
+      <span class="verify-icon">🚫</span>
+      <div class="verify-label">
+        <strong>We CANNOT freeze donated funds</strong><br/>
+        Once a donation is on the blockchain it belongs to the recipient. No court order changes this.
+      </div>
+    </div>
+    <div class="verify-item" style="border-color: rgba(255,68,68,0.2);">
+      <span class="verify-icon">🚫</span>
+      <div class="verify-label">
+        <strong>We CANNOT reverse transactions</strong><br/>
+        Blockchain transactions are final. We have no mechanism to claw back funds.
+      </div>
+    </div>
+    <div class="verify-item" style="border-color: rgba(255,68,68,0.2);">
+      <span class="verify-icon">🚫</span>
+      <div class="verify-label">
+        <strong>We CANNOT sell your data</strong><br/>
+        We do not store payment information. We do not sell data. We collect the minimum we need to run the platform.
+      </div>
+    </div>
+    <div class="verify-item" style="border-color: rgba(255,68,68,0.2);">
+      <span class="verify-icon">🚫</span>
+      <div class="verify-label">
+        <strong>We CANNOT modify the smart contract</strong><br/>
+        It is non-upgradeable by design. We gave up this ability permanently when we deployed it.
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <h2>What happens if FundOff shuts down</h2>
+
+  <p>
+    The smart contract keeps running. It lives on Base blockchain which runs on thousands of computers in dozens of countries simultaneously. If we got hit by a bus tomorrow the contract would still process donations. The code is open source so anyone can fork and redeploy the frontend. We made sure of this on purpose.
+  </p>
+
+  <p>
+    We are also a real Wyoming LLC with a real registered agent. If something happens to us there are legal processes to ensure the company continues. Our operating agreement names a successor. We thought about this.
+  </p>
+
+  <hr class="divider"/>
+
+  <h2>Report something</h2>
+
+  <p>
+    See a campaign that looks fraudulent or harmful? Use the Report button on any campaign page or email <a href="mailto:reports@fundoff.org">reports@fundoff.org</a>. We review reports within 24 hours. We take this seriously because the integrity of the platform depends on it.
+  </p>
+
+  <p>
+    Found a security vulnerability? Email <a href="mailto:hello@fundoff.org">hello@fundoff.org</a> with details. We will respond. We will fix it. We will thank you.
+  </p>
+
+  <div class="cta-box">
+    <h3>Ready to start a campaign?</h3>
+    <p>No approval needed. No judges. No off switch. Just a campaign that belongs to you.</p>
+    <a href="/" class="btn-primary">Start a Campaign</a>
+  </div>
+
+</div>
+
+<footer>
+  <span style="color:#ff4444;font-weight:700;">FundOff</span> &middot;
+  <a href="/">Home</a> &middot;
+  <a href="/about.html">About</a> &middot;
+  <a href="/faq.html">FAQ</a> &middot;
+  <a href="/privacy.html">Privacy</a> &middot;
+  <a href="mailto:hello@fundoff.org">Contact</a>
+  <br/><br/>
+  <span style="font-family:monospace;font-size:10px;color:#111;">FundOff LLC &middot; EIN 42-3141020 &middot; Wyoming &middot; Contract: 0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752</span>
+</footer>
+
+</body>
+</html>
