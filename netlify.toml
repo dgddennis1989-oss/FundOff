@@ -2,14 +2,37 @@
   publish = "."
   functions = "netlify/functions"
 
+# ─── Rate Limiting ────────────────────────────────────────────────────────────
+[[edge_functions]]
+  path = "/api/*"
+  function = "rate-limit"
+
+# ─── Redirects ────────────────────────────────────────────────────────────────
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
+# ─── Security Headers ─────────────────────────────────────────────────────────
 [[headers]]
   for = "/*"
   [headers.values]
+    # Prevent clickjacking
     X-Frame-Options = "DENY"
+    # Prevent MIME type sniffing
     X-Content-Type-Options = "nosniff"
+    # Force HTTPS for 1 year
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    # Control referrer info
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # Permissions policy - disable unnecessary browser features
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(self)"
+    # Content Security Policy
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://js.stripe.com; connect-src 'self' https://api.stripe.com; img-src 'self' data: https:;"
+
+# ─── Admin Protection ─────────────────────────────────────────────────────────
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store, no-cache, must-revalidate"
