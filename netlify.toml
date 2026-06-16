@@ -2,11 +2,6 @@
   publish = "."
   functions = "netlify/functions"
 
-# ─── Rate Limiting ────────────────────────────────────────────────────────────
-[[edge_functions]]
-  path = "/api/*"
-  function = "rate-limit"
-
 # ─── Redirects ────────────────────────────────────────────────────────────────
 [[redirects]]
   from = "/api/*"
