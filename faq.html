@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FAQ — FundOff</title>
+  <meta name="description" content="Honest answers to questions about FundOff. No corporate speak."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #09090f; color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; }
+    a { color: #ff4444; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 99px; }
+
+    nav {
+      border-bottom: 1px solid #0f0f18;
+      padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px; position: sticky; top: 0;
+      background: rgba(9,9,15,0.97); backdrop-filter: blur(16px); z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-text { font-weight: 900; font-size: 19px; letter-spacing: -0.5px; color: #fff; }
+    .logo-text span { color: #ff4444; }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 64px 24px 100px; }
+    h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 900; letter-spacing: -1px; margin-bottom: 12px; }
+    .subtitle { color: #555; font-size: 15px; margin-bottom: 48px; line-height: 1.7; }
+
+    .category { margin-bottom: 52px; }
+    .category-label {
+      font-size: 10px; font-weight: 700; color: #ff4444;
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+    }
+    .category-label::after {
+      content: ''; flex: 1; height: 1px; background: #111;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid #0f0f18;
+      padding: 20px 0;
+    }
+    .faq-item:last-child { border-bottom: none; }
+    .question {
+      font-size: 16px; font-weight: 700; color: #fff;
+      margin-bottom: 10px; line-height: 1.4;
+    }
+    .answer {
+      font-size: 14px; color: #666; line-height: 1.8;
+    }
+    .answer strong { color: #aaa; font-weight: 600; }
+    .answer a { color: #ff4444; }
+
+    .answer .code {
+      background: #0d0d15;
+      border: 1px solid #1e1e2e;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #aaa;
+      display: inline;
+    }
+
+    .callout {
+      background: rgba(255,68,68,0.05);
+      border: 1px solid rgba(255,68,68,0.12);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #777;
+      line-height: 1.7;
+    }
+
+    footer { border-top: 1px solid #0d0d15; padding: 24px; text-align: center; font-size: 12px; color: #2a2a3a; }
+    footer a { color: #333; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">
+    <svg width="32" height="32" viewBox="0 0 68 68">
+      <circle cx="34" cy="34" r="34" fill="#0d0d14"/>
+      <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+      <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+      <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+      <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+    </svg>
+    <span class="logo-text">Fund<span>Off</span></span>
+  </a>
+  <a href="/" style="font-size:13px;color:#555;font-weight:500;">Back to FundOff</a>
+</nav>
+
+<div class="container">
+
+  <h1>Honest answers.<br/>No corporate speak.</h1>
+  <p class="subtitle">If something is not covered here email <a href="mailto:hello@fundoff.org">hello@fundoff.org</a>. A real person responds. Usually within 24 hours. Sometimes faster if Matthew is annoyed about something.</p>
+
+  <!-- BASICS -->
+  <div class="category">
+    <div class="category-label">The basics</div>
+
+    <div class="faq-item">
+      <div class="question">What is FundOff?</div>
+      <div class="answer">
+        FundOff is a donation platform built on blockchain. The short version: GoFundMe can be ordered by a court to take down your campaign and freeze your funds. FundOff cannot. The funds go directly from donors to recipients through a smart contract that has no off switch, no admin keys, and no compliance team. We built it that way on purpose.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Why does this exist?</div>
+      <div class="answer">
+        In June 2026 a judge issued a court order and GoFundMe removed a campaign that had raised $454,000 from thousands of donors. The family in need got nothing. The platform had no choice. We watched that happen and decided to build the platform where that is technically impossible. That is the whole origin story.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Is FundOff a real company?</div>
+      <div class="answer">
+        Yes. FundOff LLC is registered in Wyoming, EIN 42-3141020, registered agent Northwest Registered Agent LLC, 30 N Gould St Ste N, Sheridan WY 82801. You can verify the state filing at <a href="https://wyobiz.wyo.gov" target="_blank" rel="noopener noreferrer">wyobiz.wyo.gov</a>. We are two people in Westerville Ohio. We pay taxes. We have a registered agent. We are boring and legitimate in all the ways that matter.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Who runs FundOff?</div>
+      <div class="answer">
+        Matthew Tobey built it. Nicholette Behn handles customer support and social media. That is the entire team. When you email us you are emailing one of two actual humans. There is no support bot. There is no offshore call center. There is Matthew and Nicholette.
+      </div>
+    </div>
+  </div>
+
+  <!-- TRUST AND SECURITY -->
+  <div class="category">
+    <div class="category-label">Trust and security</div>
+
+    <div class="faq-item">
+      <div class="question">Why should I trust FundOff?</div>
+      <div class="answer">
+        You should not trust us. Trust the math. Our smart contract is publicly readable at <a href="https://basescan.org/address/0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752" target="_blank" rel="noopener noreferrer">basescan.org</a>. If the code says funds go to the recipient then funds go to the recipient. We cannot change that any more than we can change 2 plus 2. Every claim we make about how the platform works is verifiable by reading the contract code. We are not asking you to take our word for it.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Can FundOff steal my donations?</div>
+      <div class="answer">
+        No. And not because we are nice people. Because we literally cannot. Funds go directly from donor to recipient through the smart contract. We never hold them. When we say we never touch your money we mean it in the most technical sense possible: the contract routes funds without our servers ever seeing them. This was an intentional design decision.
+        <div class="callout">Verify it: <span class="code">0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752</span> on basescan.org. Read the donateUSDC function. The math does not lie.</div>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Can FundOff be hacked?</div>
+      <div class="answer">
+        <strong>The funds:</strong> Extremely unlikely. Funds are on Base blockchain. Attacking it would require attacking the Ethereum network which runs on hundreds of thousands of computers worldwide simultaneously. This has never happened.<br/><br/>
+        <strong>The website:</strong> Any website can theoretically be attacked. We use Cloudflare for DDoS protection, Stripe for payment security, and Netlify for hosting. If the website went down the smart contract would keep running and funds already donated would be unaffected.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Is my payment information safe?</div>
+      <div class="answer">
+        Your card details never touch our servers. Payment processing is handled entirely by Stripe, which is PCI DSS Level 1 certified. That is the highest possible payment security certification. The same standard used by Amazon. We see a transaction confirmation. We never see your card number, CVV, or billing address.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Do you sell my data?</div>
+      <div class="answer">
+        No. We do not sell data. We do not share data with advertisers. We collect the minimum we need to run the platform and nothing else. Full details in our <a href="/privacy.html">Privacy Policy</a>.
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMPAIGNS -->
+  <div class="category">
+    <div class="category-label">Campaigns</div>
+
+    <div class="faq-item">
+      <div class="question">Do I need approval to start a campaign?</div>
+      <div class="answer">
+        No. Campaigns go live the moment you create them. No review process. No waiting period. No human who decides if your cause is worthy. This is intentional. The right to ask people for help should not require a platform's permission.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Can FundOff take down my campaign?</div>
+      <div class="answer">
+        <strong>From our website: yes.</strong> If a campaign violates our Terms of Service we can remove it from fundoff.org. We reserve this right and use it for campaigns involving violence, fraud, child exploitation, and similar serious violations.<br/><br/>
+        <strong>From the blockchain: no.</strong> Removing a campaign from our website does not affect any funds already donated. Those belong to the recipient. A court order served to FundOff LLC cannot touch funds that are already on the blockchain.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">What campaigns are not allowed?</div>
+      <div class="answer">
+        Violence, terrorism, child exploitation, fraud, illegal weapons, and harassment. Full list in our <a href="/">Terms of Service</a>. We are serious about these. We are not serious about much else. If your campaign is controversial but legal we are probably fine with it.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">What is the minimum donation?</div>
+      <div class="answer">
+        $20. This is enforced at the smart contract level. It cannot be worked around. The minimum exists to keep gas fees economically rational relative to donation size.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Is there a maximum donation?</div>
+      <div class="answer">
+        No. Donate a million dollars if you want. We will not stop you. The smart contract does not care.
+      </div>
+    </div>
+  </div>
+
+  <!-- PAYOUTS -->
+  <div class="category">
+    <div class="category-label">Receiving money</div>
+
+    <div class="faq-item">
+      <div class="question">Do I need a crypto wallet to receive donations?</div>
+      <div class="answer">
+        No. When creating a campaign you can choose to receive funds directly to your bank account via Stripe. Donations get converted to USD automatically and deposited daily. The blockchain is completely invisible to you. It feels like getting paid on Venmo.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">How long does it take to receive funds?</div>
+      <div class="answer">
+        Bank account: 1 to 2 business days after Stripe processes the payout. Crypto wallet: instant, the moment the transaction confirms on Base blockchain (usually under 30 seconds).
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">What are the fees?</div>
+      <div class="answer">
+        Free tier: 2% of each donation. Pro ($9.99/month): 1%. Elite ($29.99/month): 0.5%. For comparison GoFundMe takes 2.9% plus $0.30 per transaction. On a $454,000 campaign that is a difference of over $5,000 in your pocket.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Can donations be refunded?</div>
+      <div class="answer">
+        No. Blockchain transactions are final. This is not a policy decision. It is a technical fact about how blockchains work. Donors should be confident in a campaign before donating. We recommend checking the campaign's verification status and doing your own research.
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT IF -->
+  <div class="category">
+    <div class="category-label">What if</div>
+
+    <div class="faq-item">
+      <div class="question">What if FundOff shuts down?</div>
+      <div class="answer">
+        The smart contract keeps running. It is on Base blockchain which does not care whether our company exists. The code is open source so anyone can fork and redeploy the frontend. Funds already donated are safe regardless of what happens to us. We designed it this way deliberately.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">What if a court orders FundOff to freeze funds?</div>
+      <div class="answer">
+        We cannot comply even if we wanted to. Funds that have been donated are on the blockchain. We have no technical mechanism to freeze or reverse them. A court can order our website taken down. It cannot order Ethereum to stop processing transactions.
+        <div class="callout">This is the same reason a court cannot order the internet to delete a webpage that exists on hundreds of servers worldwide. The architecture makes compliance impossible, not just unlikely.</div>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">What if I create a campaign and the goal is not reached?</div>
+      <div class="answer">
+        You keep everything raised. FundOff is not Kickstarter. There is no all-or-nothing model. Every dollar donated goes to you regardless of whether you hit your goal.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">What if I think a campaign is a scam?</div>
+      <div class="answer">
+        Use the Report button on any campaign page or email <a href="mailto:reports@fundoff.org">reports@fundoff.org</a>. We review reports within 24 hours. If a campaign is fraudulent we remove it from our website and, where possible, alert relevant authorities. We cannot recover funds already donated but we can stop new donations from being sent to bad actors.
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTACT -->
+  <div class="category">
+    <div class="category-label">Still have questions</div>
+
+    <div class="faq-item">
+      <div class="question">How do I contact FundOff?</div>
+      <div class="answer">
+        Email <a href="mailto:hello@fundoff.org">hello@fundoff.org</a>. A real human responds. Usually within 24 hours. To report a campaign use <a href="mailto:reports@fundoff.org">reports@fundoff.org</a>.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Is this legal?</div>
+      <div class="answer">
+        Yes. FundOff LLC is registered in Wyoming, EIN 42-3141020. We operate in compliance with applicable US laws. We pay taxes. We have a registered agent who handles legal mail. We are not anonymous. We are not hiding. We are two people in Ohio who built something they believe in and put their real names on it.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span style="color:#ff4444;font-weight:700;">FundOff</span> &middot;
+  <a href="/">Home</a> &middot;
+  <a href="/about.html">About</a> &middot;
+  <a href="/faq.html">FAQ</a> &middot;
+  <a href="/privacy.html">Privacy</a> &middot;
+  <a href="mailto:hello@fundoff.org">Contact</a>
+  <br/><br/>
+  <span style="font-family:monospace;font-size:10px;color:#111;">FundOff LLC &middot; EIN 42-3141020 &middot; Wyoming &middot; Contract: 0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752</span>
+</footer>
+
+</body>
+</html>
