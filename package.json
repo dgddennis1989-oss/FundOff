@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "FundOff — Uncensorable Donation Platform",
   "dependencies": {
-    "stripe": "^14.0.0"
+    "stripe": "^14.0.0",
+    "@netlify/blobs": "^8.1.0"
   }
 }
