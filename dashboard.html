@@ -1,64 +1,917 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Campaign Dashboard — FundOff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <!-- ethers.js v5 — genuinely browser-compatible UMD, no module system required -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>
+    console.log('ethers loaded:', typeof ethers !== 'undefined' ? 'yes v' + ethers.version : 'NO - MISSING');
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: #09090f; color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 99px; }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse    { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    @keyframes spin     { to { transform:rotate(360deg); } }
+    @keyframes fillBar  { from { width:0; } to { width:var(--w); } }
+    @keyframes countUp  { from { opacity:0; transform:translateY(6px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes glow     { 0%,100%{ box-shadow:0 0 20px rgba(255,68,68,0.15); } 50%{ box-shadow:0 0 40px rgba(255,68,68,0.35); } }
+    .fade   { animation: fadeUp 0.35s ease forwards; }
+    .mono   { font-family: 'JetBrains Mono', monospace; }
+    .grotesk{ font-family: 'Space Grotesk', sans-serif; }
+    input:-webkit-autofill { -webkit-box-shadow: 0 0 0 100px #111118 inset; -webkit-text-fill-color: #fff; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
 
-exports.handler = async (event) => {
-  // Only allow POST
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
+// ─── Constants ─────────────────────────────────────────────────────────────────
+const CONTRACT_V2  = "0x4BB819722a8374b61B84B450460FF4205112c873";
+const BASE_RPC     = "https://mainnet.base.org";
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const USDC_DECIMALS = 6;
 
-  const headers = {
-    'Access-Control-Allow-Origin': 'https://fundoff.org',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
+// Minimal ABI — only what the dashboard needs
+const V2_ABI = [
+  "function getCampaign(uint256 campaignId) view returns (tuple(address recipient, uint256 goal, uint256 deadline, uint256 totalRaised, uint256 escrowBalance, uint256 lastActivityAt, uint8 tier, bool active))",
+  "function donorCount(uint256 campaignId) view returns (uint256)",
+  "function timeUntilDormant(uint256 campaignId) view returns (uint256)",
+  "function withdraw(uint256 campaignId)",
+  "function progressBps(uint256 campaignId) view returns (uint256)",
+];
+
+const USDC_ABI = [
+  "function balanceOf(address account) view returns (uint256)",
+];
+
+// ─── Utils ─────────────────────────────────────────────────────────────────────
+const fmt   = n => `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const fmtU  = raw => { try { return fmt(parseFloat(ethers.utils.formatUnits(raw, USDC_DECIMALS))); } catch(e) { return "$0.00"; } };
+const pct   = (r,g) => { try { const rn = parseFloat(ethers.utils.formatUnits(r,USDC_DECIMALS)); const gn = parseFloat(ethers.utils.formatUnits(g,USDC_DECIMALS)); return gn > 0 ? Math.min(100, Math.round((rn/gn)*100)) : 0; } catch(e) { return 0; } };
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+// Days until dormant from seconds
+const daysLeft = secs => Math.floor(Number(secs) / 86400);
+
+// AES-256-GCM encryption — all client-side, password never leaves browser
+async function encryptKey(privateKey, password) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits","deriveKey"]);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const aesKey = await crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt, iterations:310000, hash:"SHA-256" },
+    keyMaterial, { name:"AES-GCM", length:256 }, false, ["encrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, aesKey, enc.encode(privateKey));
+  const blob = { salt: Array.from(salt), iv: Array.from(iv), ct: Array.from(new Uint8Array(ciphertext)) };
+  return JSON.stringify(blob);
+}
+
+async function decryptKey(encryptedBlob, password) {
+  const { salt, iv, ct } = JSON.parse(encryptedBlob);
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits","deriveKey"]);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt:new Uint8Array(salt), iterations:310000, hash:"SHA-256" },
+    keyMaterial, { name:"AES-GCM", length:256 }, false, ["decrypt"]
+  );
+  const plain = await crypto.subtle.decrypt({ name:"AES-GCM", iv:new Uint8Array(iv) }, aesKey, new Uint8Array(ct));
+  return new TextDecoder().decode(plain);
+}
+
+// ─── API Helpers ───────────────────────────────────────────────────────────────
+async function walletApi(body) {
+  const res = await fetch('/api/wallet-auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Server error');
+  return data;
+}
+
+// ─── Contract Reader ───────────────────────────────────────────────────────────
+async function fetchCampaignData(campaignId) {
+  const provider = new ethers.providers.JsonRpcProvider(BASE_RPC);
+  const contract = new ethers.Contract(CONTRACT_V2, V2_ABI, provider);
+  const [campaign, donors, dormant] = await Promise.all([
+    contract.getCampaign(campaignId),
+    contract.donorCount(campaignId),
+    contract.timeUntilDormant(campaignId),
+  ]);
+  return { campaign, donors: donors.toNumber ? donors.toNumber() : Number(donors), dormantSeconds: dormant.toNumber ? dormant.toNumber() : Number(dormant) };
+}
+
+// ─── Progress Ring ─────────────────────────────────────────────────────────────
+function ProgressRing({ percent, size=140, stroke=10 }) {
+  const r = (size-stroke)/2;
+  const circ = 2*Math.PI*r;
+  const offset = circ - (percent/100)*circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{transform:"rotate(-90deg)"}}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1a1a28" strokeWidth={stroke}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none"
+        stroke="url(#rg)" strokeWidth={stroke}
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round" style={{transition:"stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)"}}
+      />
+      <defs>
+        <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#ff4444"/>
+          <stop offset="100%" stopColor="#ff8800"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// ─── Dormancy Meter ────────────────────────────────────────────────────────────
+function DormancyMeter({ dormantSeconds }) {
+  const TOTAL = 545 * 86400; // 18 months in seconds
+  const remaining = Math.min(dormantSeconds, TOTAL);
+  const pctLeft = Math.round((remaining / TOTAL) * 100);
+  const days = daysLeft(remaining);
+
+  if (remaining === 0) return (
+    <div style={{background:"rgba(255,68,68,0.08)",border:"1px solid rgba(255,68,68,0.2)",borderRadius:12,padding:"14px 16px"}}>
+      <div style={{fontSize:12,color:"#ff4444",fontWeight:700,marginBottom:4}}>⚠️ Funds are now sweepable to St. Jude</div>
+      <div style={{fontSize:11,color:"#555"}}>No activity for 18 months. Collect your funds now or they will be donated to St. Jude Children's Research Hospital.</div>
+    </div>
+  );
+
+  const urgency = pctLeft < 20 ? "#ff4444" : pctLeft < 50 ? "#ff8800" : "#22cc88";
+  const label   = pctLeft < 20 ? "⚠️ Collect your funds soon" : pctLeft < 50 ? "📬 Your funds are waiting" : "✅ Funds are safe in escrow";
+
+  return (
+    <div style={{background:"#111118",border:`1px solid ${urgency}22`,borderRadius:12,padding:"14px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{fontSize:11,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8}}>{label}</div>
+        <div style={{fontSize:11,color:urgency,fontWeight:700}}>{days} days left</div>
+      </div>
+      <div style={{height:4,background:"#1a1a28",borderRadius:99,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${pctLeft}%`,background:`linear-gradient(90deg,${urgency},${urgency}88)`,borderRadius:99,transition:"width 1s ease"}}/>
+      </div>
+      <div style={{fontSize:10,color:"#333",marginTop:6}}>
+        Funds go to St. Jude after 18 months without activity. Any withdrawal resets this timer.
+      </div>
+    </div>
+  );
+}
+
+// ─── Auth Gate: Setup or Login ─────────────────────────────────────────────────
+function AuthGate({ onAuth }) {
+  const [mode, setMode]           = useState("welcome"); // "welcome" | "login" | "register" | "phrase" | "restore"
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [confirm, setConfirm]     = useState("");
+  const [phrase, setPhrase]       = useState([]);
+  const [phraseInput, setPhraseInput] = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [err, setErr]             = useState("");
+  const [phraseCopied, setPhraseCopied] = useState(false);
+  const [generatedWallet, setGeneratedWallet] = useState(null);
+  const [encryptedBlob, setEncryptedBlob]     = useState(null);
+
+  const inp = {
+    width:"100%", padding:"15px 16px", borderRadius:12,
+    border:"1.5px solid #1e1e2e", background:"#0c0c14",
+    color:"#fff", fontSize:15, outline:"none",
+    fontFamily:"Inter,sans-serif", transition:"border-color 0.2s",
   };
 
-  try {
-    const { amount, campaignId, campaignTitle, message } = JSON.parse(event.body);
-
-    // Validate minimum $20
-    if (!amount || amount < 2000) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Minimum donation is $20' }),
-      };
+  const handleRegister = async () => {
+    setErr("");
+    if (!email || !email.includes("@")) { setErr("Enter a valid email address"); return; }
+    if (password.length < 8)           { setErr("Password must be at least 8 characters"); return; }
+    if (password !== confirm)          { setErr("Passwords don't match"); return; }
+    setLoading(true);
+    try {
+      const wallet = ethers.Wallet.createRandom();
+      const words = wallet.mnemonic.phrase.split(" ");
+      const blob = await encryptKey(wallet.privateKey, password);
+      setGeneratedWallet(wallet);
+      setEncryptedBlob(blob);
+      setPhrase(words);
+      setMode("phrase");
+    } catch(e) {
+      setErr(e.message || "Setup failed. Please try again.");
     }
+    setLoading(false);
+  };
 
-    // Calculate platform fee (2% — adjust based on tier in production)
-    const platformFee = Math.round(amount * 0.02);
+  const handlePhraseConfirmed = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      await walletApi({ action:"register", email, encryptedBlob, walletAddress:generatedWallet.address });
+      onAuth({ wallet:generatedWallet, email, walletAddress:generatedWallet.address });
+    } catch(e) {
+      setErr(e.message || "Registration failed. Please try again.");
+    }
+    setLoading(false);
+  };
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,               // in cents e.g. 2000 = $20.00
-      currency: 'usd',
-      automatic_payment_methods: { enabled: true },
-      metadata: {
-        campaignId,
-        campaignTitle,
-        message: message || '',
-        platformFee,
-        fundoffVersion: '1.0',
-      },
-      description: `FundOff donation to: ${campaignTitle}`,
-      statement_descriptor_suffix: 'FUNDOFF',
-    });
+  const handleLogin = async () => {
+    setErr("");
+    if (!email || !email.includes("@")) { setErr("Enter your email address"); return; }
+    if (!password)                       { setErr("Enter your password"); return; }
+    setLoading(true);
+    try {
+      const data = await walletApi({ action:"login", email });
+      let privateKey;
+      try { privateKey = await decryptKey(data.encryptedBlob, password); }
+      catch { throw new Error("Wrong password. Please try again."); }
+      const wallet = new ethers.Wallet(privateKey);
+      onAuth({ wallet, email, walletAddress:data.walletAddress, campaignIds:data.campaignIds });
+    } catch(e) {
+      setErr(e.message || "Login failed. Please try again.");
+    }
+    setLoading(false);
+  };
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        clientSecret: paymentIntent.client_secret,
-        platformFee,
-        recipientAmount: amount - platformFee,
-      }),
-    };
+  const handleRestore = async () => {
+    setErr("");
+    if (!email || !email.includes("@")) { setErr("Enter your email address"); return; }
+    if (!password || password.length < 8) { setErr("Set a new password (min 8 chars)"); return; }
+    if (password !== confirm)            { setErr("Passwords don't match"); return; }
+    const words = phraseInput.trim().split(/\s+/);
+    if (words.length !== 12)             { setErr("Recovery phrase must be exactly 12 words"); return; }
+    setLoading(true);
+    try {
+      const restored = ethers.Wallet.fromMnemonic(words.join(" "));
+      const blob = await encryptKey(restored.privateKey, password);
+      await walletApi({ action:"register", email, encryptedBlob:blob, walletAddress:restored.address });
+      onAuth({ wallet:restored, email, walletAddress:restored.address });
+    } catch(e) {
+      setErr(e.message || "Could not restore wallet. Check your recovery phrase.");
+    }
+    setLoading(false);
+  };
 
-  } catch (err) {
-    console.error('Stripe error:', err);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+  const PrimaryBtn = ({ onClick, disabled, children }) => (
+    <button onClick={onClick} disabled={disabled} style={{
+      width:"100%", padding:"16px", borderRadius:14, border:"none",
+      background: disabled ? "#1a1a1a" : "linear-gradient(135deg,#ff4444 0%,#ff6b35 100%)",
+      color: disabled ? "#444" : "#fff", fontSize:16, fontWeight:700,
+      cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily:"Space Grotesk,sans-serif", letterSpacing:-0.2,
+      boxShadow: disabled ? "none" : "0 8px 32px rgba(255,68,68,0.25)",
+      transition:"all 0.2s", marginTop:8,
+    }}>{children}</button>
+  );
+
+  const BackLink = ({ onClick, label="← Back" }) => (
+    <button onClick={onClick} style={{background:"none",border:"none",color:"#444",fontSize:13,cursor:"pointer",padding:"8px 0",fontFamily:"Inter,sans-serif"}}>
+      {label}
+    </button>
+  );
+
+  const ErrBox = ({ msg }) => msg ? (
+    <div style={{fontSize:13,color:"#ff6b6b",background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.15)",borderRadius:10,padding:"12px 14px",marginTop:8,lineHeight:1.5}}>
+      {msg}
+    </div>
+  ) : null;
+
+  const Spinner = () => (
+    <span style={{display:"inline-flex",alignItems:"center",gap:8,justifyContent:"center"}}>
+      <span style={{width:15,height:15,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>
+      Just a moment...
+    </span>
+  );
+
+  // Shared form wrapper
+  const Card = ({ children }) => (
+    <div style={{background:"linear-gradient(145deg,#111118,#0d0d14)",border:"1px solid #1a1a2a",borderRadius:24,padding:"32px 28px",boxShadow:"0 32px 80px rgba(0,0,0,0.6)"}}>
+      {children}
+    </div>
+  );
+
+  const Label = ({ children }) => (
+    <div style={{fontSize:12,color:"#666",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:16}}>{children}</div>
+  );
+
+  // ── WELCOME SCREEN ──────────────────────────────────────────────────────
+  if (mode==="welcome") return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
+      <div style={{width:"100%",maxWidth:400,textAlign:"center"}} className="fade">
+
+        {/* Logo mark */}
+        <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:20,background:"linear-gradient(135deg,#1a0808,#111)",border:"1px solid rgba(255,68,68,0.2)",marginBottom:24,boxShadow:"0 0 40px rgba(255,68,68,0.1)"}}>
+          <svg width="38" height="38" viewBox="0 0 68 68">
+            <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+            <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+            <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+            <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+          </svg>
+        </div>
+
+        <h1 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:32,fontWeight:800,letterSpacing:-1,marginBottom:10,lineHeight:1.1}}>
+          Your campaign<br/><span style={{color:"#ff4444"}}>dashboard</span>
+        </h1>
+        <p style={{color:"#555",fontSize:15,lineHeight:1.7,marginBottom:36,maxWidth:320,margin:"0 auto 36px"}}>
+          See your donations in real time, collect your funds with one tap, and track your progress.
+        </p>
+
+        {/* Trust badges */}
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:36,flexWrap:"wrap"}}>
+          {[["🔒","Fully on-chain"],["⚡","Instant payouts"],["🛡️","Only you can withdraw"]].map(([icon,label])=>(
+            <div key={label} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#444",background:"#111118",border:"1px solid #1a1a28",borderRadius:99,padding:"6px 12px"}}>
+              <span>{icon}</span><span>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <button onClick={()=>setMode("login")} style={{
+            width:"100%",padding:"16px",borderRadius:14,border:"none",
+            background:"linear-gradient(135deg,#ff4444,#ff6b35)",
+            color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",
+            fontFamily:"Space Grotesk,sans-serif",letterSpacing:-0.2,
+            boxShadow:"0 8px 32px rgba(255,68,68,0.3)",
+          }}>
+            Sign in to my dashboard
+          </button>
+          <button onClick={()=>setMode("register")} style={{
+            width:"100%",padding:"16px",borderRadius:14,
+            border:"1.5px solid #1e1e2e",background:"none",
+            color:"#aaa",fontSize:15,fontWeight:600,cursor:"pointer",
+            fontFamily:"Space Grotesk,sans-serif",
+          }}>
+            Create a new account
+          </button>
+          <button onClick={()=>setMode("restore")} style={{background:"none",border:"none",color:"#333",fontSize:13,cursor:"pointer",padding:"4px",fontFamily:"Inter,sans-serif"}}>
+            Lost access? Recover with phrase
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── PHRASE BACKUP SCREEN ────────────────────────────────────────────────
+  if (mode==="phrase") return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#09090f"}}>
+      <div style={{width:"100%",maxWidth:440}} className="fade">
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:44,marginBottom:12}}>📝</div>
+          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:26,fontWeight:800,letterSpacing:-0.5,marginBottom:10}}>Save your recovery phrase</h2>
+          <p style={{color:"#555",fontSize:14,lineHeight:1.7,maxWidth:360,margin:"0 auto"}}>
+            Write these 12 words on paper and keep them somewhere safe. If you ever lose your password, this is the <em>only</em> way to get back in.
+          </p>
+        </div>
+
+        <Card>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+            {phrase.map((word,i)=>(
+              <div key={i} style={{background:"#0a0a12",border:"1px solid #1a1a28",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:10,color:"#333",fontFamily:"JetBrains Mono,monospace",minWidth:18,textAlign:"right"}}>{i+1}</span>
+                <span style={{fontSize:14,fontWeight:600,color:"#fff",letterSpacing:0.2}}>{word}</span>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={()=>{navigator.clipboard.writeText(phrase.join(" "));setPhraseCopied(true);setTimeout(()=>setPhraseCopied(false),2000);}}
+            style={{width:"100%",padding:"12px",borderRadius:10,border:"1px solid #1e1e2e",background:"none",color:phraseCopied?"#22cc88":"#555",fontSize:13,cursor:"pointer",fontWeight:600,marginBottom:4,transition:"color 0.2s"}}>
+            {phraseCopied ? "✓ Copied to clipboard" : "Copy all words"}
+          </button>
+
+          <div style={{background:"rgba(255,136,0,0.06)",border:"1px solid rgba(255,136,0,0.15)",borderRadius:10,padding:"12px 14px",margin:"12px 0",fontSize:12,color:"#aa7700",lineHeight:1.6}}>
+            ⚠️ Never share this phrase with anyone — not even FundOff support. Anyone who has it can access your funds.
+          </div>
+
+          <ErrBox msg={err}/>
+          <PrimaryBtn onClick={handlePhraseConfirmed} disabled={loading}>
+            {loading ? <Spinner/> : "I've saved it — take me to my dashboard"}
+          </PrimaryBtn>
+        </Card>
+      </div>
+    </div>
+  );
+
+  // ── LOGIN SCREEN ────────────────────────────────────────────────────────
+  if (mode==="login") return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
+      <div style={{width:"100%",maxWidth:400}} className="fade">
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:36,marginBottom:10}}>👋</div>
+          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:28,fontWeight:800,letterSpacing:-0.5,marginBottom:8}}>Welcome back</h2>
+          <p style={{color:"#555",fontSize:14}}>Sign in to see your donations and collect your funds.</p>
+        </div>
+        <Card>
+          <Label>Email</Label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
+          <Label>Password</Label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"
+            style={inp} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+          <ErrBox msg={err}/>
+          <PrimaryBtn onClick={handleLogin} disabled={loading}>
+            {loading ? <Spinner/> : "Sign in →"}
+          </PrimaryBtn>
+          <div style={{textAlign:"center",marginTop:20,display:"flex",flexDirection:"column",gap:8}}>
+            <button onClick={()=>{setMode("register");setErr("");}} style={{background:"none",border:"none",color:"#555",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+              New here? Create an account
+            </button>
+            <button onClick={()=>{setMode("restore");setErr("");}} style={{background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+              Forgot password? Recover with phrase
+            </button>
+          </div>
+        </Card>
+        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+      </div>
+    </div>
+  );
+
+  // ── REGISTER SCREEN ─────────────────────────────────────────────────────
+  if (mode==="register") return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
+      <div style={{width:"100%",maxWidth:400}} className="fade">
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:36,marginBottom:10}}>✨</div>
+          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:28,fontWeight:800,letterSpacing:-0.5,marginBottom:8}}>Set up your account</h2>
+          <p style={{color:"#555",fontSize:14,lineHeight:1.6}}>We'll create a secure wallet just for you. Your password never leaves your device.</p>
+        </div>
+        <Card>
+          <Label>Email</Label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
+          <Label>Create a password</Label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={inp}/>
+          <Label>Confirm password</Label>
+          <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" style={inp}/>
+          <ErrBox msg={err}/>
+          <PrimaryBtn onClick={handleRegister} disabled={loading}>
+            {loading ? <Spinner/> : "Create my account →"}
+          </PrimaryBtn>
+          <p style={{fontSize:12,color:"#333",textAlign:"center",marginTop:14,lineHeight:1.7}}>
+            A secure wallet is generated on your device. FundOff never sees your password or private key.
+          </p>
+          <div style={{textAlign:"center",marginTop:8}}>
+            <button onClick={()=>{setMode("login");setErr("");}} style={{background:"none",border:"none",color:"#555",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+              Already have an account? Sign in
+            </button>
+          </div>
+        </Card>
+        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+      </div>
+    </div>
+  );
+
+  // ── RESTORE SCREEN ──────────────────────────────────────────────────────
+  return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#09090f"}}>
+      <div style={{width:"100%",maxWidth:400}} className="fade">
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:36,marginBottom:10}}>🔑</div>
+          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:28,fontWeight:800,letterSpacing:-0.5,marginBottom:8}}>Recover your account</h2>
+          <p style={{color:"#555",fontSize:14,lineHeight:1.6}}>Enter your 12-word phrase and set a new password. Your funds are safe.</p>
+        </div>
+        <Card>
+          <Label>Email</Label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
+          <Label>New password</Label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={inp}/>
+          <Label>Confirm new password</Label>
+          <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" style={inp}/>
+          <Label>Your 12-word recovery phrase</Label>
+          <textarea value={phraseInput} onChange={e=>setPhraseInput(e.target.value)}
+            rows={3} placeholder="word1 word2 word3 ... word12"
+            style={{...inp,resize:"none",fontFamily:"JetBrains Mono,monospace",fontSize:13,lineHeight:1.6}}
+          />
+          <ErrBox msg={err}/>
+          <PrimaryBtn onClick={handleRestore} disabled={loading}>
+            {loading ? <Spinner/> : "Restore my account →"}
+          </PrimaryBtn>
+        </Card>
+        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard ─────────────────────────────────────────────────────────────
+function Dashboard({ session }) {
+  const { wallet, email, walletAddress, campaignIds=[] } = session;
+
+  const [campaignId, setCampaignId]   = useState(null);
+  const [campaignData, setCampaignData] = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawDone, setWithdrawDone] = useState(false);
+  const [err, setErr]                 = useState("");
+  const [tab, setTab]                 = useState("overview");
+  const [showShare, setShowShare]     = useState(false);
+  const [enterId, setEnterId]         = useState("");
+
+  // Get campaign ID from URL first, then from account
+  useEffect(()=>{
+    const params = new URLSearchParams(window.location.search);
+    const urlId = params.get("campaign");
+    if (urlId) {
+      setCampaignId(urlId);
+    } else if (campaignIds.length > 0) {
+      setCampaignId(campaignIds[0]);
+    }
+  },[]);
+
+  useEffect(()=>{
+    if (!campaignId) { setLoading(false); return; }
+    setLoading(true);
+    fetchCampaignData(campaignId)
+      .then(data => { setCampaignData(data); setErr(""); })
+      .catch(e => setErr("Could not load campaign data. Check your connection."))
+      .finally(()=>setLoading(false));
+  },[campaignId]);
+
+  const handleWithdraw = async () => {
+    if (!campaignData || !wallet) return;
+    setWithdrawing(true);
+    setErr("");
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(BASE_RPC);
+      const signer = wallet.connect(provider);
+      const contract = new ethers.Contract(CONTRACT_V2, V2_ABI, signer);
+
+      const escrowBal = campaignData.campaign.escrowBalance;
+      if (!escrowBal || escrowBal.isZero() || !escrowBal || escrowBal.isZero()) {
+        throw new Error("Nothing to collect yet. Donations will appear here as they come in.");
+      }
+
+      const tx = await contract.withdraw(campaignId);
+      await tx.wait();
+
+      // Refresh data after successful withdrawal
+      const fresh = await fetchCampaignData(campaignId);
+      setCampaignData(fresh);
+      setWithdrawDone(true);
+      setTimeout(()=>setWithdrawDone(false), 6000);
+    } catch(e) {
+      if (e.code === "ACTION_REJECTED") {
+        setErr("Transaction cancelled.");
+      } else {
+        setErr((e.message ? e.message.slice(0,120) : '') || "Withdrawal failed. Please try again.");
+      }
+    }
+    setWithdrawing(false);
+  };
+
+  if (!campaignId) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"#09090f"}}>
+      <div style={{maxWidth:400,width:"100%",textAlign:"center"}} className="fade">
+        <div style={{fontSize:40,marginBottom:16}}>📋</div>
+        <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:22,fontWeight:800,marginBottom:8}}>Enter your Campaign ID</h2>
+        <p style={{color:"#555",fontSize:13,marginBottom:20,lineHeight:1.6}}>Find this in your campaign confirmation email or from the campaign URL.</p>
+        <input value={enterId} onChange={e=>setEnterId(e.target.value)} placeholder="e.g. 3"
+          style={{width:"100%",padding:"13px 14px",borderRadius:10,border:"1px solid #1e1e2e",background:"#0d0d15",color:"#fff",fontSize:16,outline:"none",marginBottom:12,textAlign:"center",fontFamily:"JetBrains Mono,monospace"}}
+        />
+        <button onClick={()=>setCampaignId(enterId.trim())} style={{width:"100%",padding:"14px",borderRadius:11,border:"none",background:"linear-gradient(90deg,#ff4444,#ff8800)",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"Space Grotesk,sans-serif"}}>
+          View Campaign
+        </button>
+      </div>
+    </div>
+  );
+
+  if (loading) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#09090f"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{width:40,height:40,border:"3px solid #1e1e2e",borderTopColor:"#ff4444",borderRadius:"50%",animation:"spin 0.7s linear infinite",margin:"0 auto 16px"}}/>
+        <div style={{color:"#444",fontSize:13}}>Reading from Base blockchain...</div>
+      </div>
+    </div>
+  );
+
+  if (err && !campaignData) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"#09090f"}}>
+      <div style={{textAlign:"center",maxWidth:380}}>
+        <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
+        <div style={{color:"#ff4444",fontSize:14,marginBottom:12}}>{err}</div>
+        <button onClick={()=>window.location.reload()} style={{padding:"11px 24px",borderRadius:9,border:"1px solid #1e1e2e",background:"none",color:"#666",fontSize:13,cursor:"pointer"}}>Retry</button>
+      </div>
+    </div>
+  );
+
+  const { campaign, donors, dormantSeconds } = campaignData;
+  const escrowBalance = campaign.escrowBalance;
+  const totalRaised   = campaign.totalRaised;
+  const goal          = campaign.goal;
+  const progress      = pct(totalRaised, goal);
+  const hasEscrow     = escrowBalance && escrowBalance.gt && escrowBalance.gt(0);
+
+  // Verify this wallet is actually the campaign recipient
+  const isRecipient = (walletAddress && campaign.recipient && walletAddress.toLowerCase() === campaign.recipient.toLowerCase());
+
+  const TIERS = ["Free","Pro","Elite"];
+  const FEES  = [2, 1, 0.5];
+  const tier  = Number(campaign.tier);
+  const fee   = FEES[tier] || 2;
+  const netAmount = hasEscrow
+    ? (parseFloat(ethers.utils.formatUnits(escrowBalance, USDC_DECIMALS))) * (1 - fee/100)
+    : 0;
+
+  return (
+    <div style={{minHeight:"100vh",background:"#09090f"}}>
+
+      {/* Nav */}
+      <nav style={{borderBottom:"1px solid #0f0f18",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,background:"rgba(9,9,15,0.97)",backdropFilter:"blur(16px)",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <a href="/" style={{display:"flex",alignItems:"center",gap:8,textDecoration:"none"}}>
+            <svg width="26" height="26" viewBox="0 0 68 68">
+              <circle cx="34" cy="34" r="34" fill="#0d0d14"/>
+              <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+              <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+              <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+              <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+            </svg>
+            <span style={{fontWeight:900,fontSize:15,color:"#fff",letterSpacing:-0.5,fontFamily:"Space Grotesk,sans-serif"}}>Fund<span style={{color:"#ff4444"}}>Off</span></span>
+          </a>
+          <span style={{color:"#1e1e2e"}}>·</span>
+          <span style={{fontSize:12,color:"#444"}}>Campaign #{campaignId}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(34,204,136,0.08)",border:"1px solid rgba(34,204,136,0.15)",borderRadius:99,padding:"4px 10px"}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:"#22cc88",display:"inline-block",animation:"pulse 1.5s ease infinite"}}/>
+            <span style={{fontSize:11,color:"#22cc88",fontWeight:600}}>Live on Base</span>
+          </div>
+          <button onClick={()=>setShowShare(true)} style={{padding:"7px 14px",borderRadius:9,border:"none",background:"linear-gradient(90deg,#ff4444,#ff8800)",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Space Grotesk,sans-serif"}}>
+            Share
+          </button>
+        </div>
+      </nav>
+
+      <div style={{maxWidth:960,margin:"0 auto",padding:"32px 20px 80px"}}>
+
+        {/* ── COLLECT FUNDS HERO ── */}
+        {isRecipient&&(
+          <div className="fade" style={{
+            background: hasEscrow
+              ? "linear-gradient(135deg,#1a0a0a,#0f0808)"
+              : "#0f0f18",
+            border: hasEscrow
+              ? "1px solid rgba(255,68,68,0.25)"
+              : "1px solid #1a1a28",
+            borderRadius:20,
+            padding:"32px 28px",
+            marginBottom:24,
+            animation: hasEscrow ? "glow 3s ease infinite" : "none",
+          }}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
+              <div>
+                <div style={{fontSize:11,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>
+                  {hasEscrow ? "Ready to collect" : "Waiting for donations"}
+                </div>
+                <div style={{fontFamily:"Space Grotesk,sans-serif",fontSize:"clamp(36px,6vw,52px)",fontWeight:800,lineHeight:1,color: hasEscrow ? "#fff" : "#333",animation: hasEscrow ? "countUp 0.6s ease forwards" : "none"}}>
+                  {hasEscrow ? fmt(netAmount) : "$0.00"}
+                </div>
+                {hasEscrow&&(
+                  <div style={{fontSize:12,color:"#555",marginTop:6}}>
+                    {fmtU(escrowBalance)} in escrow · {fee}% platform fee ({TIERS[tier]} tier) · you receive {fmt(netAmount)}
+                  </div>
+                )}
+              </div>
+              {isRecipient&&(
+                <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:200}}>
+                  {withdrawDone&&(
+                    <div style={{textAlign:"center",padding:"10px 16px",background:"rgba(34,204,136,0.1)",border:"1px solid rgba(34,204,136,0.2)",borderRadius:10,fontSize:13,color:"#22cc88",fontWeight:700}}>
+                      ✓ Funds sent to your wallet!
+                    </div>
+                  )}
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={!hasEscrow || withdrawing || !isRecipient}
+                    style={{
+                      padding:"16px 28px",
+                      borderRadius:12,
+                      border:"none",
+                      background: !hasEscrow ? "#1a1a1a" : withdrawing ? "#1a1a1a" : "linear-gradient(90deg,#ff4444,#ff8800)",
+                      color: !hasEscrow ? "#333" : "#fff",
+                      fontSize:16,
+                      fontWeight:800,
+                      cursor: !hasEscrow || withdrawing ? "not-allowed" : "pointer",
+                      fontFamily:"Space Grotesk,sans-serif",
+                      letterSpacing:-0.3,
+                      transition:"all 0.2s",
+                    }}>
+                    {withdrawing
+                      ? <span style={{display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}>
+                          <span style={{width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>
+                          Sending to your wallet...
+                        </span>
+                      : hasEscrow ? "Collect Funds →" : "Nothing to collect yet"
+                    }
+                  </button>
+                  {!isRecipient&&(
+                    <div style={{fontSize:11,color:"#ff4444",textAlign:"center"}}>Connected wallet doesn't match campaign recipient</div>
+                  )}
+                </div>
+              )}
+            </div>
+            {err&&<div style={{fontSize:12,color:"#ff4444",marginTop:12,padding:"10px 12px",background:"rgba(255,68,68,0.06)",borderRadius:8,border:"1px solid rgba(255,68,68,0.15)"}}>{err}</div>}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:2,marginBottom:28,borderBottom:"1px solid #111"}}>
+          {["overview","escrow","settings"].map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{
+              padding:"10px 18px",borderRadius:"10px 10px 0 0",border:"none",cursor:"pointer",
+              background: tab===t?"#111118":"none",
+              color: tab===t?"#fff":"#444",
+              fontSize:13,fontWeight:tab===t?700:500,
+              textTransform:"capitalize",
+              borderBottom: tab===t?"2px solid #ff4444":"2px solid transparent",
+              transition:"all 0.15s",fontFamily:"Inter,sans-serif",
+            }}>{t}</button>
+          ))}
+        </div>
+
+        {/* ── OVERVIEW TAB ── */}
+        {tab==="overview"&&(
+          <div className="fade">
+            {/* Stats row */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:24}}>
+              {[
+                { label:"Total Raised",  value:fmtU(totalRaised),          accent:"#ff4444", sub:"all time gross" },
+                { label:"In Escrow Now", value:fmtU(escrowBalance),         accent: hasEscrow?"#ff8800":"#333", sub:"available to collect" },
+                { label:"Unique Donors", value:donors.toLocaleString(),      accent:"#fff",    sub:"on-chain count" },
+                { label:"Progress",      value:`${progress}%`,              accent:"#22cc88", sub:`of ${fmtU(goal)} goal` },
+              ].map(s=>(
+                <div key={s.label} style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,padding:"18px 20px"}}>
+                  <div style={{fontSize:10,color:"#444",textTransform:"uppercase",letterSpacing:0.8,fontWeight:600,marginBottom:8}}>{s.label}</div>
+                  <div style={{fontFamily:"Space Grotesk,sans-serif",fontSize:26,fontWeight:800,color:s.accent,lineHeight:1,marginBottom:4}}>{s.value}</div>
+                  <div style={{fontSize:11,color:"#333"}}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,padding:"22px 24px",marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontFamily:"Space Grotesk,sans-serif",fontSize:15,fontWeight:700}}>Campaign Progress</div>
+                <div style={{fontFamily:"Space Grotesk,sans-serif",fontSize:20,fontWeight:800,color:"#ff4444"}}>{progress}%</div>
+              </div>
+              <div style={{height:8,background:"#1a1a28",borderRadius:99,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(90deg,#ff4444,#ff8800)",borderRadius:99,transition:"width 1.2s cubic-bezier(0.34,1.56,0.64,1)"}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
+                <span style={{fontSize:11,color:"#444"}}>{fmtU(totalRaised)} raised</span>
+                <span style={{fontSize:11,color:"#444"}}>Goal: {fmtU(goal)}</span>
+              </div>
+            </div>
+
+            {/* Dormancy meter */}
+            <DormancyMeter dormantSeconds={dormantSeconds}/>
+
+            {/* Blockchain proof */}
+            <div style={{background:"#0a0a12",border:"1px solid #111",borderRadius:12,padding:"14px 16px",marginTop:14}}>
+              <div style={{fontSize:11,color:"#333",lineHeight:1.8,fontFamily:"JetBrains Mono,monospace"}}>
+                <div>Contract: {CONTRACT_V2}</div>
+                <div>Recipient: {campaign.recipient}</div>
+                <div>Network: Base (chain 8453)</div>
+                <div style={{marginTop:4}}>
+                  <a href={`https://basescan.org/address/${CONTRACT_V2}`} target="_blank" rel="noopener noreferrer"
+                    style={{color:"#ff4444",textDecoration:"none",fontSize:11}}>View on Basescan ↗</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ESCROW TAB ── */}
+        {tab==="escrow"&&(
+          <div className="fade" style={{display:"flex",flexDirection:"column",gap:14}}>
+
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,padding:"22px 24px"}}>
+              <div style={{fontSize:11,color:"#444",textTransform:"uppercase",letterSpacing:0.8,fontWeight:600,marginBottom:14}}>How Your Money Works</div>
+              {[
+                { icon:"🔒", title:"Funds are locked in a smart contract", desc:"Every donation goes directly into a smart contract on Base blockchain. Nobody — not FundOff, not any court, not us — can move that money except you." },
+                { icon:"⚡", title:"Collect whenever you want", desc:"Click 'Collect Funds' above at any time. The full amount (minus your tier fee) goes to your wallet in one transaction, usually settling in under 30 seconds." },
+                { icon:"💵", title:"Converting to dollars", desc:"Once in your wallet, convert USDC to USD via Coinbase, any crypto exchange, or Transak. A cash-out shortcut is coming directly to this dashboard." },
+                { icon:"⏳", title:"18-month inactivity rule", desc:"If there's no activity (donations or withdrawals) for 18 months, uncollected funds are automatically donated to St. Jude Children's Research Hospital. Any activity resets this timer." },
+              ].map((item,i)=>(
+                <div key={i} style={{display:"flex",gap:14,padding:"14px 0",borderBottom:i<3?"1px solid #0f0f18":"none"}}>
+                  <div style={{fontSize:22,flexShrink:0,marginTop:2}}>{item.icon}</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,marginBottom:4,color:"#fff"}}>{item.title}</div>
+                    <div style={{fontSize:12,color:"#555",lineHeight:1.6}}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{background:"rgba(34,204,136,0.04)",border:"1px solid rgba(34,204,136,0.1)",borderRadius:12,padding:"16px 20px"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#22cc88",marginBottom:6}}>Your wallet</div>
+              <div style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:"#555",wordBreak:"break-all",lineHeight:1.6}}>
+                {walletAddress}
+              </div>
+              <div style={{fontSize:11,color:"#333",marginTop:8}}>
+                This wallet is yours. FundOff generated it for you and holds only an encrypted copy — your password is the only key. Export your private key or recovery phrase from settings if you want to use this wallet anywhere else.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SETTINGS TAB ── */}
+        {tab==="settings"&&(
+          <div className="fade" style={{display:"flex",flexDirection:"column",gap:14,maxWidth:560}}>
+            <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,overflow:"hidden"}}>
+              <div style={{padding:"16px 20px",borderBottom:"1px solid #0f0f18"}}>
+                <span style={{fontWeight:700,fontSize:14}}>Campaign Info</span>
+              </div>
+              {[
+                {label:"Campaign ID", value:`#${campaignId}`, mono:true},
+                {label:"Tier",        value:TIERS[tier]||"Free"},
+                {label:"Platform Fee",value:`${fee}%`},
+                {label:"Status",      value:campaign.active?"Active":"Inactive"},
+              ].map(r=>(
+                <div key={r.label} style={{padding:"14px 20px",borderBottom:"1px solid #0a0a12",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"#555"}}>{r.label}</span>
+                  <span style={{fontSize:12,color:"#aaa",fontWeight:600,fontFamily:r.mono?"JetBrains Mono,monospace":"inherit"}}>{r.value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{background:"rgba(68,136,255,0.06)",border:"1px solid rgba(68,136,255,0.15)",borderRadius:14,padding:"18px 20px"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#4488ff",marginBottom:8}}>Your wallet address</div>
+              <div style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:"#666",wordBreak:"break-all",lineHeight:1.8,marginBottom:10}}>{walletAddress}</div>
+              <div style={{fontSize:11,color:"#444",lineHeight:1.7}}>To use this wallet in MetaMask or another app, you need your private key. Log in and use your 12-word recovery phrase to restore access anywhere. If you need help contact <a href="mailto:hello@fundoff.org" style={{color:"#4488ff",textDecoration:"none"}}>hello@fundoff.org</a>.</div>
+            </div>
+
+            <div style={{background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.1)",borderRadius:14,padding:"18px 20px"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#ff4444",marginBottom:6}}>Danger Zone</div>
+              <div style={{fontSize:12,color:"#555",lineHeight:1.7}}>Deactivating hides your campaign from FundOff's listing. Your escrow balance is still fully yours and can be collected at any time — deactivation has zero effect on funds.</div>
+              <button style={{marginTop:12,padding:"10px 18px",borderRadius:9,border:"1px solid rgba(255,68,68,0.3)",background:"none",color:"#ff4444",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                Deactivate Campaign
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Share Modal */}
+      {showShare&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}}
+          onClick={e=>e.target===e.currentTarget&&setShowShare(false)}>
+          <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:16,width:"100%",maxWidth:400}} className="fade">
+            <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <h3 style={{margin:0,fontSize:16,fontWeight:800,fontFamily:"Space Grotesk,sans-serif"}}>Share Campaign</h3>
+              <button onClick={()=>setShowShare(false)} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+            </div>
+            <div style={{padding:22}}>
+              <div style={{background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:10,padding:"12px 14px",fontFamily:"JetBrains Mono,monospace",fontSize:11,color:"#555",marginBottom:16,wordBreak:"break-all"}}>
+                {`https://fundoff.org?campaign=${campaignId}`}
+              </div>
+              <button onClick={()=>navigator.clipboard.writeText(`https://fundoff.org?campaign=${campaignId}`)}
+                style={{width:"100%",padding:"12px",borderRadius:9,border:"1px solid #1e1e2e",background:"none",color:"#666",fontSize:13,cursor:"pointer",fontWeight:600}}>
+                Copy link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Error Boundary ─────────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{padding:32,color:"#ff4444",fontFamily:"monospace",fontSize:12,background:"#09090f",minHeight:"100vh"}}>
+        <div style={{marginBottom:8,fontWeight:700,fontSize:16}}>Dashboard render error:</div>
+        <pre style={{whiteSpace:"pre-wrap",wordBreak:"break-all",color:"#ff6666"}}>{this.state.error.toString()}</pre>
+        <div style={{marginTop:16,color:"#555"}}>Open browser console for full details.</div>
+      </div>
+    );
+    return this.props.children;
   }
-};
+}
+
+// ─── App Root ───────────────────────────────────────────────────────────────────
+function App() {
+  const [session, setSession] = useState(null);
+
+  const handleAuth = (sess) => { setSession(sess); };
+
+  if (!session) return <AuthGate onAuth={handleAuth}/>;
+  return <Dashboard session={session}/>;
+}
+
+try {
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <ErrorBoundary><App/></ErrorBoundary>
+  );
+} catch(e) {
+  console.error("Fatal render error:", e);
+  document.getElementById("root").innerHTML = '<div style="padding:32px;color:#ff4444;font-family:monospace;font-size:12px">Fatal error: ' + e.toString() + '</div>';
+}
+</script>
+</body>
+</html>
