@@ -169,7 +169,7 @@ function DormancyMeter({ dormantSeconds }) {
 
 // ─── Auth Gate: Setup or Login ─────────────────────────────────────────────────
 function AuthGate({ onAuth }) {
-  const [mode, setMode]           = useState("welcome"); // "welcome" | "login" | "register" | "phrase" | "restore"
+  const [mode, setMode]           = useState("login"); // "login" | "register" | "phrase" | "restore"
   const [email, setEmail]         = useState("");
   const [password, setPassword]   = useState("");
   const [confirm, setConfirm]     = useState("");
@@ -182,22 +182,26 @@ function AuthGate({ onAuth }) {
   const [encryptedBlob, setEncryptedBlob]     = useState(null);
 
   const inp = {
-    width:"100%", padding:"15px 16px", borderRadius:12,
-    border:"1.5px solid #1e1e2e", background:"#0c0c14",
-    color:"#fff", fontSize:15, outline:"none",
-    fontFamily:"Inter,sans-serif", transition:"border-color 0.2s",
+    width:"100%", padding:"13px 14px", borderRadius:10,
+    border:"1px solid #1e1e2e", background:"#0d0d15",
+    color:"#fff", fontSize:14, outline:"none",
+    fontFamily:"Inter,sans-serif", marginBottom:0,
   };
 
   const handleRegister = async () => {
     setErr("");
     if (!email || !email.includes("@")) { setErr("Enter a valid email address"); return; }
     if (password.length < 8)           { setErr("Password must be at least 8 characters"); return; }
-    if (password !== confirm)          { setErr("Passwords don't match"); return; }
+    if (password !== confirm)          { setErr("Passwords do not match"); return; }
     setLoading(true);
     try {
+      // Generate wallet entirely in browser
       const wallet = ethers.Wallet.createRandom();
       const words = wallet.mnemonic.phrase.split(" ");
+
+      // Encrypt private key with password — never leaves this device in plaintext
       const blob = await encryptKey(wallet.privateKey, password);
+
       setGeneratedWallet(wallet);
       setEncryptedBlob(blob);
       setPhrase(words);
@@ -212,8 +216,13 @@ function AuthGate({ onAuth }) {
     setLoading(true);
     setErr("");
     try {
-      await walletApi({ action:"register", email, encryptedBlob, walletAddress:generatedWallet.address });
-      onAuth({ wallet:generatedWallet, email, walletAddress:generatedWallet.address });
+      await walletApi({
+        action: "register",
+        email,
+        encryptedBlob,
+        walletAddress: generatedWallet.address,
+      });
+      onAuth({ wallet: generatedWallet, email, walletAddress: generatedWallet.address });
     } catch(e) {
       setErr(e.message || "Registration failed. Please try again.");
     }
@@ -226,12 +235,16 @@ function AuthGate({ onAuth }) {
     if (!password)                       { setErr("Enter your password"); return; }
     setLoading(true);
     try {
-      const data = await walletApi({ action:"login", email });
+      const data = await walletApi({ action: "login", email });
+      // Decrypt the private key locally — server never sees the password
       let privateKey;
-      try { privateKey = await decryptKey(data.encryptedBlob, password); }
-      catch { throw new Error("Wrong password. Please try again."); }
+      try {
+        privateKey = await decryptKey(data.encryptedBlob, password);
+      } catch {
+        throw new Error("Wrong password. Please try again.");
+      }
       const wallet = new ethers.Wallet(privateKey);
-      onAuth({ wallet, email, walletAddress:data.walletAddress, campaignIds:data.campaignIds });
+      onAuth({ wallet, email, walletAddress: data.walletAddress, campaignIds: data.campaignIds });
     } catch(e) {
       setErr(e.message || "Login failed. Please try again.");
     }
@@ -242,254 +255,158 @@ function AuthGate({ onAuth }) {
     setErr("");
     if (!email || !email.includes("@")) { setErr("Enter your email address"); return; }
     if (!password || password.length < 8) { setErr("Set a new password (min 8 chars)"); return; }
-    if (password !== confirm)            { setErr("Passwords don't match"); return; }
+    if (password !== confirm)            { setErr("Passwords do not match"); return; }
     const words = phraseInput.trim().split(/\s+/);
     if (words.length !== 12)             { setErr("Recovery phrase must be exactly 12 words"); return; }
     setLoading(true);
     try {
       const restored = ethers.Wallet.fromMnemonic(words.join(" "));
       const blob = await encryptKey(restored.privateKey, password);
-      await walletApi({ action:"register", email, encryptedBlob:blob, walletAddress:restored.address });
-      onAuth({ wallet:restored, email, walletAddress:restored.address });
+      // Update stored blob with new password encryption
+      await walletApi({ action: "register", email, encryptedBlob: blob, walletAddress: restored.address });
+      onAuth({ wallet: restored, email, walletAddress: restored.address });
     } catch(e) {
       setErr(e.message || "Could not restore wallet. Check your recovery phrase.");
     }
     setLoading(false);
   };
 
-  const PrimaryBtn = ({ onClick, disabled, children }) => (
-    <button onClick={onClick} disabled={disabled} style={{
-      width:"100%", padding:"16px", borderRadius:14, border:"none",
-      background: disabled ? "#1a1a1a" : "linear-gradient(135deg,#ff4444 0%,#ff6b35 100%)",
-      color: disabled ? "#444" : "#fff", fontSize:16, fontWeight:700,
-      cursor: disabled ? "not-allowed" : "pointer",
-      fontFamily:"Space Grotesk,sans-serif", letterSpacing:-0.2,
-      boxShadow: disabled ? "none" : "0 8px 32px rgba(255,68,68,0.25)",
-      transition:"all 0.2s", marginTop:8,
-    }}>{children}</button>
-  );
+  const btnStyle = (disabled) => ({
+    width:"100%", padding:"14px", borderRadius:11, border:"none",
+    background: disabled ? "#1a1a1a" : "linear-gradient(90deg,#ff4444,#ff8800)",
+    color: disabled ? "#444" : "#fff", fontSize:15, fontWeight:700,
+    cursor: disabled ? "not-allowed" : "pointer", marginTop:4,
+    fontFamily:"Space Grotesk,sans-serif",
+  });
 
-  const BackLink = ({ onClick, label="← Back" }) => (
-    <button onClick={onClick} style={{background:"none",border:"none",color:"#444",fontSize:13,cursor:"pointer",padding:"8px 0",fontFamily:"Inter,sans-serif"}}>
-      {label}
-    </button>
-  );
-
-  const ErrBox = ({ msg }) => msg ? (
-    <div style={{fontSize:13,color:"#ff6b6b",background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.15)",borderRadius:10,padding:"12px 14px",marginTop:8,lineHeight:1.5}}>
-      {msg}
-    </div>
-  ) : null;
-
-  const Spinner = () => (
-    <span style={{display:"inline-flex",alignItems:"center",gap:8,justifyContent:"center"}}>
-      <span style={{width:15,height:15,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>
-      Just a moment...
-    </span>
-  );
-
-  // Shared form wrapper
-  const Card = ({ children }) => (
-    <div style={{background:"linear-gradient(145deg,#111118,#0d0d14)",border:"1px solid #1a1a2a",borderRadius:24,padding:"32px 28px",boxShadow:"0 32px 80px rgba(0,0,0,0.6)"}}>
-      {children}
-    </div>
-  );
-
-  const Label = ({ children }) => (
-    <div style={{fontSize:12,color:"#666",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:16}}>{children}</div>
-  );
-
-  // ── WELCOME SCREEN ──────────────────────────────────────────────────────
-  if (mode==="welcome") return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
-      <div style={{width:"100%",maxWidth:400,textAlign:"center"}} className="fade">
-
-        {/* Logo mark */}
-        <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:20,background:"linear-gradient(135deg,#1a0808,#111)",border:"1px solid rgba(255,68,68,0.2)",marginBottom:24,boxShadow:"0 0 40px rgba(255,68,68,0.1)"}}>
-          <svg width="38" height="38" viewBox="0 0 68 68">
-            <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
-            <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
-            <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
-            <circle cx="51" cy="30" r="6" fill="#ff4444"/>
-          </svg>
-        </div>
-
-        <h1 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:32,fontWeight:800,letterSpacing:-1,marginBottom:10,lineHeight:1.1}}>
-          Your campaign<br/><span style={{color:"#ff4444"}}>dashboard</span>
-        </h1>
-        <p style={{color:"#555",fontSize:15,lineHeight:1.7,marginBottom:36,maxWidth:320,margin:"0 auto 36px"}}>
-          See your donations in real time, collect your funds with one tap, and track your progress.
-        </p>
-
-        {/* Trust badges */}
-        <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:36,flexWrap:"wrap"}}>
-          {[["🔒","Fully on-chain"],["⚡","Instant payouts"],["🛡️","Only you can withdraw"]].map(([icon,label])=>(
-            <div key={label} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#444",background:"#111118",border:"1px solid #1a1a28",borderRadius:99,padding:"6px 12px"}}>
-              <span>{icon}</span><span>{label}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <button onClick={()=>setMode("login")} style={{
-            width:"100%",padding:"16px",borderRadius:14,border:"none",
-            background:"linear-gradient(135deg,#ff4444,#ff6b35)",
-            color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",
-            fontFamily:"Space Grotesk,sans-serif",letterSpacing:-0.2,
-            boxShadow:"0 8px 32px rgba(255,68,68,0.3)",
-          }}>
-            Sign in to my dashboard
-          </button>
-          <button onClick={()=>setMode("register")} style={{
-            width:"100%",padding:"16px",borderRadius:14,
-            border:"1.5px solid #1e1e2e",background:"none",
-            color:"#aaa",fontSize:15,fontWeight:600,cursor:"pointer",
-            fontFamily:"Space Grotesk,sans-serif",
-          }}>
-            Create a new account
-          </button>
-          <button onClick={()=>setMode("restore")} style={{background:"none",border:"none",color:"#333",fontSize:13,cursor:"pointer",padding:"4px",fontFamily:"Inter,sans-serif"}}>
-            Lost access? Recover with phrase
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── PHRASE BACKUP SCREEN ────────────────────────────────────────────────
-  if (mode==="phrase") return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#09090f"}}>
-      <div style={{width:"100%",maxWidth:440}} className="fade">
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontSize:44,marginBottom:12}}>📝</div>
-          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:26,fontWeight:800,letterSpacing:-0.5,marginBottom:10}}>Save your recovery phrase</h2>
-          <p style={{color:"#555",fontSize:14,lineHeight:1.7,maxWidth:360,margin:"0 auto"}}>
-            Write these 12 words on paper and keep them somewhere safe. If you ever lose your password, this is the <em>only</em> way to get back in.
-          </p>
-        </div>
-
-        <Card>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
-            {phrase.map((word,i)=>(
-              <div key={i} style={{background:"#0a0a12",border:"1px solid #1a1a28",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:10,color:"#333",fontFamily:"JetBrains Mono,monospace",minWidth:18,textAlign:"right"}}>{i+1}</span>
-                <span style={{fontSize:14,fontWeight:600,color:"#fff",letterSpacing:0.2}}>{word}</span>
-              </div>
-            ))}
-          </div>
-
-          <button onClick={()=>{navigator.clipboard.writeText(phrase.join(" "));setPhraseCopied(true);setTimeout(()=>setPhraseCopied(false),2000);}}
-            style={{width:"100%",padding:"12px",borderRadius:10,border:"1px solid #1e1e2e",background:"none",color:phraseCopied?"#22cc88":"#555",fontSize:13,cursor:"pointer",fontWeight:600,marginBottom:4,transition:"color 0.2s"}}>
-            {phraseCopied ? "✓ Copied to clipboard" : "Copy all words"}
-          </button>
-
-          <div style={{background:"rgba(255,136,0,0.06)",border:"1px solid rgba(255,136,0,0.15)",borderRadius:10,padding:"12px 14px",margin:"12px 0",fontSize:12,color:"#aa7700",lineHeight:1.6}}>
-            ⚠️ Never share this phrase with anyone — not even FundOff support. Anyone who has it can access your funds.
-          </div>
-
-          <ErrBox msg={err}/>
-          <PrimaryBtn onClick={handlePhraseConfirmed} disabled={loading}>
-            {loading ? <Spinner/> : "I've saved it — take me to my dashboard"}
-          </PrimaryBtn>
-        </Card>
-      </div>
-    </div>
-  );
-
-  // ── LOGIN SCREEN ────────────────────────────────────────────────────────
-  if (mode==="login") return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
-      <div style={{width:"100%",maxWidth:400}} className="fade">
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontSize:36,marginBottom:10}}>👋</div>
-          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:28,fontWeight:800,letterSpacing:-0.5,marginBottom:8}}>Welcome back</h2>
-          <p style={{color:"#555",fontSize:14}}>Sign in to see your donations and collect your funds.</p>
-        </div>
-        <Card>
-          <Label>Email</Label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
-          <Label>Password</Label>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"
-            style={inp} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
-          <ErrBox msg={err}/>
-          <PrimaryBtn onClick={handleLogin} disabled={loading}>
-            {loading ? <Spinner/> : "Sign in →"}
-          </PrimaryBtn>
-          <div style={{textAlign:"center",marginTop:20,display:"flex",flexDirection:"column",gap:8}}>
-            <button onClick={()=>{setMode("register");setErr("");}} style={{background:"none",border:"none",color:"#555",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
-              New here? Create an account
-            </button>
-            <button onClick={()=>{setMode("restore");setErr("");}} style={{background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
-              Forgot password? Recover with phrase
-            </button>
-          </div>
-        </Card>
-        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
-      </div>
-    </div>
-  );
-
-  // ── REGISTER SCREEN ─────────────────────────────────────────────────────
-  if (mode==="register") return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
-      <div style={{width:"100%",maxWidth:400}} className="fade">
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontSize:36,marginBottom:10}}>✨</div>
-          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:28,fontWeight:800,letterSpacing:-0.5,marginBottom:8}}>Set up your account</h2>
-          <p style={{color:"#555",fontSize:14,lineHeight:1.6}}>We'll create a secure wallet just for you. Your password never leaves your device.</p>
-        </div>
-        <Card>
-          <Label>Email</Label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
-          <Label>Create a password</Label>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={inp}/>
-          <Label>Confirm password</Label>
-          <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" style={inp}/>
-          <ErrBox msg={err}/>
-          <PrimaryBtn onClick={handleRegister} disabled={loading}>
-            {loading ? <Spinner/> : "Create my account →"}
-          </PrimaryBtn>
-          <p style={{fontSize:12,color:"#333",textAlign:"center",marginTop:14,lineHeight:1.7}}>
-            A secure wallet is generated on your device. FundOff never sees your password or private key.
-          </p>
-          <div style={{textAlign:"center",marginTop:8}}>
-            <button onClick={()=>{setMode("login");setErr("");}} style={{background:"none",border:"none",color:"#555",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
-              Already have an account? Sign in
-            </button>
-          </div>
-        </Card>
-        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
-      </div>
-    </div>
-  );
-
-  // ── RESTORE SCREEN ──────────────────────────────────────────────────────
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#09090f"}}>
-      <div style={{width:"100%",maxWidth:400}} className="fade">
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontSize:36,marginBottom:10}}>🔑</div>
-          <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:28,fontWeight:800,letterSpacing:-0.5,marginBottom:8}}>Recover your account</h2>
-          <p style={{color:"#555",fontSize:14,lineHeight:1.6}}>Enter your 12-word phrase and set a new password. Your funds are safe.</p>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"#09090f"}}>
+      <div style={{width:"100%",maxWidth:420}} className="fade">
+
+        {/* Logo */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <a href="/" style={{display:"inline-flex",alignItems:"center",gap:10,textDecoration:"none"}}>
+            <svg width="36" height="36" viewBox="0 0 68 68">
+              <circle cx="34" cy="34" r="34" fill="#0d0d14"/>
+              <rect x="17" y="14" width="7" height="40" rx="2" fill="white"/>
+              <rect x="17" y="14" width="28" height="7" rx="2" fill="white"/>
+              <rect x="17" y="27" width="20" height="6" rx="2" fill="white"/>
+              <circle cx="51" cy="30" r="6" fill="#ff4444"/>
+            </svg>
+            <span style={{fontWeight:900,fontSize:22,color:"#fff",letterSpacing:-0.5,fontFamily:"Space Grotesk,sans-serif"}}>
+              Fund<span style={{color:"#ff4444"}}>Off</span>
+            </span>
+          </a>
         </div>
-        <Card>
-          <Label>Email</Label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
-          <Label>New password</Label>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={inp}/>
-          <Label>Confirm new password</Label>
-          <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" style={inp}/>
-          <Label>Your 12-word recovery phrase</Label>
-          <textarea value={phraseInput} onChange={e=>setPhraseInput(e.target.value)}
-            rows={3} placeholder="word1 word2 word3 ... word12"
-            style={{...inp,resize:"none",fontFamily:"JetBrains Mono,monospace",fontSize:13,lineHeight:1.6}}
-          />
-          <ErrBox msg={err}/>
-          <PrimaryBtn onClick={handleRestore} disabled={loading}>
-            {loading ? <Spinner/> : "Restore my account →"}
-          </PrimaryBtn>
-        </Card>
-        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+
+        {/* ── PHRASE BACKUP SCREEN ── */}
+        {mode==="phrase"&&(
+          <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:18,overflow:"hidden"}}>
+            <div style={{padding:"22px 24px",borderBottom:"1px solid #111"}}>
+              <h2 style={{fontFamily:"Space Grotesk,sans-serif",fontSize:20,fontWeight:800,marginBottom:6}}>Write this down</h2>
+              <p style={{fontSize:13,color:"#555",lineHeight:1.6}}>This is your 12-word recovery phrase. It's the only way to recover your funds if you forget your password. Write it on paper and store it somewhere safe. <strong style={{color:"#ff4444"}}>We cannot recover it for you.</strong></p>
+            </div>
+            <div style={{padding:"20px 24px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+                {phrase.map((word,i)=>(
+                  <div key={i} style={{background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:10,color:"#333",fontFamily:"JetBrains Mono,monospace",width:16}}>{String(i+1).padStart(2,"0")}</span>
+                    <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>{word}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={()=>{navigator.clipboard.writeText(phrase.join(" "));setPhraseCopied(true);setTimeout(()=>setPhraseCopied(false),2000);}}
+                style={{width:"100%",padding:"11px",borderRadius:9,border:"1px solid #1e1e2e",background:"none",color:phraseCopied?"#22cc88":"#666",fontSize:13,cursor:"pointer",marginBottom:12,fontWeight:600}}>
+                {phraseCopied?"✓ Copied to clipboard":"Copy phrase"}
+              </button>
+              {err&&<div style={{fontSize:12,color:"#ff4444",marginBottom:10}}>{err}</div>}
+              <button onClick={handlePhraseConfirmed} disabled={loading} style={btnStyle(loading)}>
+                {loading?"Setting up your wallet...":"I've written it down — Continue"}
+              </button>
+              <p style={{fontSize:11,color:"#333",textAlign:"center",marginTop:12,lineHeight:1.6}}>
+                Your wallet address: <span style={{fontFamily:"JetBrains Mono,monospace",color:"#444"}}>{generatedWallet && generatedWallet.address ? generatedWallet.address.slice(0,10)+'...'+generatedWallet.address.slice(-8) : ''}</span>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── LOGIN / REGISTER / RESTORE SCREEN ── */}
+        {mode!=="phrase"&&(
+          <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:18,overflow:"hidden"}}>
+            {/* Tab switcher */}
+            <div style={{display:"flex",borderBottom:"1px solid #111"}}>
+              {[["login","Sign In"],["register","Create Wallet"],["restore","Recover"]].map(([m,label])=>(
+                <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{
+                  flex:1,padding:"16px 8px",border:"none",cursor:"pointer",
+                  background: mode===m?"#111118":"transparent",
+                  color: mode===m?"#fff":"#444",
+                  fontSize:12,fontWeight:mode===m?700:500,
+                  borderBottom: mode===m?"2px solid #ff4444":"2px solid transparent",
+                  fontFamily:"Inter,sans-serif",transition:"all 0.15s",
+                }}>{label}</button>
+              ))}
+            </div>
+
+            <div style={{padding:"24px"}}>
+
+              {/* Email */}
+              <div style={{marginBottom:12}}>
+                <label style={{display:"block",fontSize:11,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Email</label>
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/>
+              </div>
+
+              {/* Password */}
+              <div style={{marginBottom:12}}>
+                <label style={{display:"block",fontSize:11,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>
+                  {mode==="restore"?"New Password":"Password"}
+                </label>
+                <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+                  placeholder={mode==="login"?"Your password":"Min 8 characters"} style={inp}
+                  onKeyDown={e=>e.key==="Enter"&&mode==="login"&&handleLogin()}
+                />
+              </div>
+
+              {/* Confirm password */}
+              {(mode==="register"||mode==="restore")&&(
+                <div style={{marginBottom:12}}>
+                  <label style={{display:"block",fontSize:11,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Confirm Password</label>
+                  <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" style={inp}/>
+                </div>
+              )}
+
+              {/* Recovery phrase input */}
+              {mode==="restore"&&(
+                <div style={{marginBottom:12}}>
+                  <label style={{display:"block",fontSize:11,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>12-Word Recovery Phrase</label>
+                  <textarea value={phraseInput} onChange={e=>setPhraseInput(e.target.value)}
+                    rows={3} placeholder="word1 word2 word3 ... word12"
+                    style={{...inp,resize:"none",fontFamily:"JetBrains Mono,monospace",fontSize:12}}
+                  />
+                </div>
+              )}
+
+              {err&&<div style={{fontSize:12,color:"#ff4444",marginBottom:12,padding:"10px 12px",background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.15)",borderRadius:8}}>{err}</div>}
+
+              <button
+                onClick={mode==="login"?handleLogin:mode==="register"?handleRegister:handleRestore}
+                disabled={loading} style={btnStyle(loading)}>
+                {loading
+                  ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      <span style={{width:14,height:14,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>
+                      {mode==="register"?"Creating your wallet...":mode==="restore"?"Restoring...":"Signing in..."}
+                    </span>
+                  : mode==="login" ? "Sign In" : mode==="register" ? "Create My Wallet" : "Restore Wallet"
+                }
+              </button>
+
+              {mode==="register"&&(
+                <p style={{fontSize:11,color:"#333",textAlign:"center",marginTop:14,lineHeight:1.7}}>
+                  Your wallet is generated on your device. Your password never leaves your browser. FundOff cannot access your funds — by design.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
