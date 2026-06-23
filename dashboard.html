@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Campaign Dashboard — FundOff</title>
+  <title>Campaign Dashboard - FundOff</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
-  <!-- ethers.js v5 — genuinely browser-compatible UMD, no module system required -->
+  <!-- ethers.js v5 - genuinely browser-compatible UMD, no module system required -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   <script>
     console.log('ethers loaded:', typeof ethers !== 'undefined' ? 'yes v' + ethers.version : 'NO - MISSING');
@@ -36,13 +36,13 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
+// --- Constants 
 const CONTRACT_V2  = "0x4BB819722a8374b61B84B450460FF4205112c873";
 const BASE_RPC     = "https://mainnet.base.org";
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const USDC_DECIMALS = 6;
 
-// Minimal ABI — only what the dashboard needs
+// Minimal ABI - only what the dashboard needs
 const V2_ABI = [
   "function getCampaign(uint256 campaignId) view returns (tuple(address recipient, uint256 goal, uint256 deadline, uint256 totalRaised, uint256 escrowBalance, uint256 lastActivityAt, uint8 tier, bool active))",
   "function donorCount(uint256 campaignId) view returns (uint256)",
@@ -55,7 +55,7 @@ const USDC_ABI = [
   "function balanceOf(address account) view returns (uint256)",
 ];
 
-// ─── Utils ─────────────────────────────────────────────────────────────────────
+// --- Utils 
 const fmt   = n => `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const fmtU  = raw => { try { return fmt(parseFloat(ethers.utils.formatUnits(raw, USDC_DECIMALS))); } catch(e) { return "$0.00"; } };
 const pct   = (r,g) => { try { const rn = parseFloat(ethers.utils.formatUnits(r,USDC_DECIMALS)); const gn = parseFloat(ethers.utils.formatUnits(g,USDC_DECIMALS)); return gn > 0 ? Math.min(100, Math.round((rn/gn)*100)) : 0; } catch(e) { return 0; } };
@@ -64,7 +64,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 // Days until dormant from seconds
 const daysLeft = secs => Math.floor(Number(secs) / 86400);
 
-// AES-256-GCM encryption — all client-side, password never leaves browser
+// AES-256-GCM encryption - all client-side, password never leaves browser
 async function encryptKey(privateKey, password) {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits","deriveKey"]);
@@ -91,7 +91,7 @@ async function decryptKey(encryptedBlob, password) {
   return new TextDecoder().decode(plain);
 }
 
-// ─── API Helpers ───────────────────────────────────────────────────────────────
+// --- API Helpers 
 async function walletApi(body) {
   const res = await fetch('/api/wallet-auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const data = await res.json();
@@ -99,7 +99,7 @@ async function walletApi(body) {
   return data;
 }
 
-// ─── Contract Reader ───────────────────────────────────────────────────────────
+// --- Contract Reader 
 async function fetchCampaignData(campaignId) {
   const provider = new ethers.providers.JsonRpcProvider(BASE_RPC);
   const contract = new ethers.Contract(CONTRACT_V2, V2_ABI, provider);
@@ -111,7 +111,7 @@ async function fetchCampaignData(campaignId) {
   return { campaign, donors: donors.toNumber ? donors.toNumber() : Number(donors), dormantSeconds: dormant.toNumber ? dormant.toNumber() : Number(dormant) };
 }
 
-// ─── Progress Ring ─────────────────────────────────────────────────────────────
+// --- Progress Ring 
 function ProgressRing({ percent, size=140, stroke=10 }) {
   const r = (size-stroke)/2;
   const circ = 2*Math.PI*r;
@@ -134,7 +134,7 @@ function ProgressRing({ percent, size=140, stroke=10 }) {
   );
 }
 
-// ─── Dormancy Meter ────────────────────────────────────────────────────────────
+// --- Dormancy Meter 
 function DormancyMeter({ dormantSeconds }) {
   const TOTAL = 545 * 86400; // 18 months in seconds
   const remaining = Math.min(dormantSeconds, TOTAL);
@@ -167,7 +167,7 @@ function DormancyMeter({ dormantSeconds }) {
   );
 }
 
-// ─── Auth Gate: Setup or Login ─────────────────────────────────────────────────
+// --- Auth Gate: Setup or Login 
 function AuthGate({ onAuth }) {
   const [mode, setMode]           = useState("welcome"); // "welcome" | "login" | "register" | "phrase" | "restore"
   const [email, setEmail]         = useState("");
@@ -269,7 +269,7 @@ function AuthGate({ onAuth }) {
     }}>{children}</button>
   );
 
-  const BackLink = ({ onClick, label="← Back" }) => (
+  const BackLink = ({ onClick, label="<- Back" }) => (
     <button onClick={onClick} style={{background:"none",border:"none",color:"#444",fontSize:13,cursor:"pointer",padding:"8px 0",fontFamily:"Inter,sans-serif"}}>
       {label}
     </button>
@@ -299,7 +299,7 @@ function AuthGate({ onAuth }) {
     <div style={{fontSize:12,color:"#666",fontWeight:600,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:16}}>{children}</div>
   );
 
-  // ── WELCOME SCREEN ──────────────────────────────────────────────────────
+  // --- WELCOME SCREEN 
   if (mode==="welcome") return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
       <div style={{width:"100%",maxWidth:400,textAlign:"center"}} className="fade">
@@ -356,7 +356,7 @@ function AuthGate({ onAuth }) {
     </div>
   );
 
-  // ── PHRASE BACKUP SCREEN ────────────────────────────────────────────────
+  // --- PHRASE BACKUP SCREEN 
   if (mode==="phrase") return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#09090f"}}>
       <div style={{width:"100%",maxWidth:440}} className="fade">
@@ -384,19 +384,19 @@ function AuthGate({ onAuth }) {
           </button>
 
           <div style={{background:"rgba(255,136,0,0.06)",border:"1px solid rgba(255,136,0,0.15)",borderRadius:10,padding:"12px 14px",margin:"12px 0",fontSize:12,color:"#aa7700",lineHeight:1.6}}>
-            ⚠️ Never share this phrase with anyone — not even FundOff support. Anyone who has it can access your funds.
+            ⚠️ Never share this phrase with anyone - not even FundOff support. Anyone who has it can access your funds.
           </div>
 
           <ErrBox msg={err}/>
           <PrimaryBtn onClick={handlePhraseConfirmed} disabled={loading}>
-            {loading ? <Spinner/> : "I've saved it — take me to my dashboard"}
+            {loading ? <Spinner/> : "I've saved it - take me to my dashboard"}
           </PrimaryBtn>
         </Card>
       </div>
     </div>
   );
 
-  // ── LOGIN SCREEN ────────────────────────────────────────────────────────
+  // --- LOGIN SCREEN 
   if (mode==="login") return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
       <div style={{width:"100%",maxWidth:400}} className="fade">
@@ -413,7 +413,7 @@ function AuthGate({ onAuth }) {
             style={inp} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
           <ErrBox msg={err}/>
           <PrimaryBtn onClick={handleLogin} disabled={loading}>
-            {loading ? <Spinner/> : "Sign in →"}
+            {loading ? <Spinner/> : "Sign in ->"}
           </PrimaryBtn>
           <div style={{textAlign:"center",marginTop:20,display:"flex",flexDirection:"column",gap:8}}>
             <button onClick={()=>{setMode("register");setErr("");}} style={{background:"none",border:"none",color:"#555",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
@@ -424,12 +424,12 @@ function AuthGate({ onAuth }) {
             </button>
           </div>
         </Card>
-        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="<- Back"/></div>
       </div>
     </div>
   );
 
-  // ── REGISTER SCREEN ─────────────────────────────────────────────────────
+  // --- REGISTER SCREEN 
   if (mode==="register") return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"radial-gradient(ellipse at 50% 0%,#1a0808 0%,#09090f 60%)"}}>
       <div style={{width:"100%",maxWidth:400}} className="fade">
@@ -447,7 +447,7 @@ function AuthGate({ onAuth }) {
           <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" style={inp}/>
           <ErrBox msg={err}/>
           <PrimaryBtn onClick={handleRegister} disabled={loading}>
-            {loading ? <Spinner/> : "Create my account →"}
+            {loading ? <Spinner/> : "Create my account ->"}
           </PrimaryBtn>
           <p style={{fontSize:12,color:"#333",textAlign:"center",marginTop:14,lineHeight:1.7}}>
             A secure wallet is generated on your device. FundOff never sees your password or private key.
@@ -458,12 +458,12 @@ function AuthGate({ onAuth }) {
             </button>
           </div>
         </Card>
-        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="<- Back"/></div>
       </div>
     </div>
   );
 
-  // ── RESTORE SCREEN ──────────────────────────────────────────────────────
+  // --- RESTORE SCREEN 
   return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#09090f"}}>
       <div style={{width:"100%",maxWidth:400}} className="fade">
@@ -486,16 +486,16 @@ function AuthGate({ onAuth }) {
           />
           <ErrBox msg={err}/>
           <PrimaryBtn onClick={handleRestore} disabled={loading}>
-            {loading ? <Spinner/> : "Restore my account →"}
+            {loading ? <Spinner/> : "Restore my account ->"}
           </PrimaryBtn>
         </Card>
-        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="← Back"/></div>
+        <div style={{textAlign:"center",marginTop:16}}><BackLink onClick={()=>setMode("welcome")} label="<- Back"/></div>
       </div>
     </div>
   );
 }
 
-// ─── Main Dashboard ─────────────────────────────────────────────────────────────
+// --- Main Dashboard 
 function Dashboard({ session }) {
   const { wallet, email, walletAddress, campaignIds=[] } = session;
 
@@ -630,7 +630,7 @@ function Dashboard({ session }) {
             </svg>
             <span style={{fontWeight:900,fontSize:15,color:"#fff",letterSpacing:-0.5,fontFamily:"Space Grotesk,sans-serif"}}>Fund<span style={{color:"#ff4444"}}>Off</span></span>
           </a>
-          <span style={{color:"#1e1e2e"}}>·</span>
+          <span style={{color:"#1e1e2e"}}>.</span>
           <span style={{fontSize:12,color:"#444"}}>Campaign #{campaignId}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -646,7 +646,7 @@ function Dashboard({ session }) {
 
       <div style={{maxWidth:960,margin:"0 auto",padding:"32px 20px 80px"}}>
 
-        {/* ── COLLECT FUNDS HERO ── */}
+        {/*  COLLECT FUNDS HERO  */}
         {isRecipient&&(
           <div className="fade" style={{
             background: hasEscrow
@@ -670,7 +670,7 @@ function Dashboard({ session }) {
                 </div>
                 {hasEscrow&&(
                   <div style={{fontSize:12,color:"#555",marginTop:6}}>
-                    {fmtU(escrowBalance)} in escrow · {fee}% platform fee ({TIERS[tier]} tier) · you receive {fmt(netAmount)}
+                    {fmtU(escrowBalance)} in escrow . {fee}% platform fee ({TIERS[tier]} tier) . you receive {fmt(netAmount)}
                   </div>
                 )}
               </div>
@@ -702,7 +702,7 @@ function Dashboard({ session }) {
                           <span style={{width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>
                           Sending to your wallet...
                         </span>
-                      : hasEscrow ? "Collect Funds →" : "Nothing to collect yet"
+                      : hasEscrow ? "Collect Funds ->" : "Nothing to collect yet"
                     }
                   </button>
                   {!isRecipient&&(
@@ -730,7 +730,7 @@ function Dashboard({ session }) {
           ))}
         </div>
 
-        {/* ── OVERVIEW TAB ── */}
+        {/*  OVERVIEW TAB  */}
         {tab==="overview"&&(
           <div className="fade">
             {/* Stats row */}
@@ -775,21 +775,21 @@ function Dashboard({ session }) {
                 <div>Network: Base (chain 8453)</div>
                 <div style={{marginTop:4}}>
                   <a href={`https://basescan.org/address/${CONTRACT_V2}`} target="_blank" rel="noopener noreferrer"
-                    style={{color:"#ff4444",textDecoration:"none",fontSize:11}}>View on Basescan ↗</a>
+                    style={{color:"#ff4444",textDecoration:"none",fontSize:11}}>View on Basescan -></a>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── ESCROW TAB ── */}
+        {/*  ESCROW TAB  */}
         {tab==="escrow"&&(
           <div className="fade" style={{display:"flex",flexDirection:"column",gap:14}}>
 
             <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,padding:"22px 24px"}}>
               <div style={{fontSize:11,color:"#444",textTransform:"uppercase",letterSpacing:0.8,fontWeight:600,marginBottom:14}}>How Your Money Works</div>
               {[
-                { icon:"🔒", title:"Funds are locked in a smart contract", desc:"Every donation goes directly into a smart contract on Base blockchain. Nobody — not FundOff, not any court, not us — can move that money except you." },
+                { icon:"🔒", title:"Funds are locked in a smart contract", desc:"Every donation goes directly into a smart contract on Base blockchain. Nobody - not FundOff, not any court, not us - can move that money except you." },
                 { icon:"⚡", title:"Collect whenever you want", desc:"Click 'Collect Funds' above at any time. The full amount (minus your tier fee) goes to your wallet in one transaction, usually settling in under 30 seconds." },
                 { icon:"💵", title:"Converting to dollars", desc:"Once in your wallet, convert USDC to USD via Coinbase, any crypto exchange, or Transak. A cash-out shortcut is coming directly to this dashboard." },
                 { icon:"⏳", title:"18-month inactivity rule", desc:"If there's no activity (donations or withdrawals) for 18 months, uncollected funds are automatically donated to St. Jude Children's Research Hospital. Any activity resets this timer." },
@@ -810,13 +810,13 @@ function Dashboard({ session }) {
                 {walletAddress}
               </div>
               <div style={{fontSize:11,color:"#333",marginTop:8}}>
-                This wallet is yours. FundOff generated it for you and holds only an encrypted copy — your password is the only key. Export your private key or recovery phrase from settings if you want to use this wallet anywhere else.
+                This wallet is yours. FundOff generated it for you and holds only an encrypted copy - your password is the only key. Export your private key or recovery phrase from settings if you want to use this wallet anywhere else.
               </div>
             </div>
           </div>
         )}
 
-        {/* ── SETTINGS TAB ── */}
+        {/*  SETTINGS TAB  */}
         {tab==="settings"&&(
           <div className="fade" style={{display:"flex",flexDirection:"column",gap:14,maxWidth:560}}>
             <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:14,overflow:"hidden"}}>
@@ -844,7 +844,7 @@ function Dashboard({ session }) {
 
             <div style={{background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.1)",borderRadius:14,padding:"18px 20px"}}>
               <div style={{fontSize:13,fontWeight:700,color:"#ff4444",marginBottom:6}}>Danger Zone</div>
-              <div style={{fontSize:12,color:"#555",lineHeight:1.7}}>Deactivating hides your campaign from FundOff's listing. Your escrow balance is still fully yours and can be collected at any time — deactivation has zero effect on funds.</div>
+              <div style={{fontSize:12,color:"#555",lineHeight:1.7}}>Deactivating hides your campaign from FundOff's listing. Your escrow balance is still fully yours and can be collected at any time - deactivation has zero effect on funds.</div>
               <button style={{marginTop:12,padding:"10px 18px",borderRadius:9,border:"1px solid rgba(255,68,68,0.3)",background:"none",color:"#ff4444",fontSize:12,fontWeight:600,cursor:"pointer"}}>
                 Deactivate Campaign
               </button>
@@ -860,7 +860,7 @@ function Dashboard({ session }) {
           <div style={{background:"#111118",border:"1px solid #1a1a28",borderRadius:16,width:"100%",maxWidth:400}} className="fade">
             <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <h3 style={{margin:0,fontSize:16,fontWeight:800,fontFamily:"Space Grotesk,sans-serif"}}>Share Campaign</h3>
-              <button onClick={()=>setShowShare(false)} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+              <button onClick={()=>setShowShare(false)} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
             </div>
             <div style={{padding:22}}>
               <div style={{background:"#0d0d15",border:"1px solid #1e1e2e",borderRadius:10,padding:"12px 14px",fontFamily:"JetBrains Mono,monospace",fontSize:11,color:"#555",marginBottom:16,wordBreak:"break-all"}}>
@@ -878,7 +878,7 @@ function Dashboard({ session }) {
   );
 }
 
-// ─── Error Boundary ─────────────────────────────────────────────────────────────
+// --- Error Boundary 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e }; }
@@ -894,7 +894,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ─── App Root ───────────────────────────────────────────────────────────────────
+// --- App Root 
 function App() {
   const [session, setSession] = useState(null);
 
