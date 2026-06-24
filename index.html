@@ -657,7 +657,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
         if(!window.Stripe){setTimeout(mount,100);return;}
         if(cardRef.current)return;
         try{
-          const s=window.Stripe("pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz");
+          const s=window.Stripe(STRIPE_PK); // Always use the constant, never hardcode
           const els=s.elements();
           const card=els.create('card',{style:{base:{color:'#fff',fontFamily:'Inter,sans-serif',fontSize:'15px','::placeholder':{color:'#555'}},invalid:{color:'#ff4444'}}});
           // Give React time to render the DOM element before mounting
@@ -698,6 +698,28 @@ function DonateModal({campaign,onClose,onShowTos}) {
     if(method==="card"&&!email){setErr("Please enter your email");return;}
     setErr("");setProcessing(true);
     try {
+      if(method==="crypto"){
+        // Card or wallet → USDC → lands directly in campaign escrow on Base.
+        // No Stripe involved in this path at all.
+        const res=await fetch('/api/create-transak-widget-url',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            walletAddress:CONTRACT, // funds go to the FundOff escrow contract, tagged by campaignId
+            fiatAmount:amtNum,
+            campaignId:campaign.id,
+          }),
+        });
+        const data=await res.json();
+        if(!res.ok) throw new Error(data.error||'Could not start crypto payment');
+        // Open Transak in a new tab — donor completes payment there,
+        // USDC arrives on-chain once their payment settles.
+        window.open(data.widgetUrl,'_blank','noopener');
+        setProcessing(false);
+        setStep(3);
+        return;
+      }
+
       const amountCents=Math.round(amtNum*100);
       // Step 1: Create payment intent on server
       const res=await fetch('/api/create-payment-intent',{
@@ -769,9 +791,19 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <span style={{color:"#666",fontSize:13}}>Total</span>
               <span style={{color:"#ff4444",fontSize:20,fontWeight:800}}>${amtNum.toFixed(2)}</span>
             </div>
-            <div style={{display:"flex",gap:8,marginBottom:18}}>
-              {[["card","💳 Card"],["apple","🍎 Apple Pay"],["crypto","⟠ Crypto"]].map(([id,label])=>(<button key={id} onClick={()=>setMethod(id)} style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",fontWeight:600,fontSize:11,border:method===id?"2px solid #ff4444":"1px solid #1e1e2e",background:method===id?"rgba(255,68,68,0.1)":"#0d0d15",color:method===id?"#ff4444":"#555"}}>{label}</button>))}
+            <div style={{display:"flex",gap:8,marginBottom:10}}>
+              {[["crypto","⟠ Crypto"],["card","💳 Card"],["apple","🍎 Apple Pay"]].map(([id,label])=>(<button key={id} onClick={()=>setMethod(id)} style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",fontWeight:600,fontSize:11,border:method===id?"2px solid #ff4444":"1px solid #1e1e2e",background:method===id?"rgba(255,68,68,0.1)":"#0d0d15",color:method===id?"#ff4444":"#555"}}>{label}</button>))}
             </div>
+            {method==="crypto"&&(
+              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#22cc88",background:"rgba(34,204,136,0.06)",border:"1px solid rgba(34,204,136,0.15)",borderRadius:8,padding:"7px 10px",marginBottom:14}}>
+                🔒 Fully on-chain. Pay with card or wallet — funds land directly in escrow. No platform, court, or company can touch it.
+              </div>
+            )}
+            {(method==="card"||method==="apple")&&(
+              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#ff8800",background:"rgba(255,136,0,0.06)",border:"1px solid rgba(255,136,0,0.15)",borderRadius:8,padding:"7px 10px",marginBottom:14}}>
+                ⚠️ Processed by Stripe to the recipient's bank account. Not on-chain and not protected the same way crypto donations are.
+              </div>
+            )}
             {method==="card"&&(
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <input type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} style={inp}/>
@@ -781,11 +813,18 @@ function DonateModal({campaign,onClose,onShowTos}) {
                 {stripeErr&&<div style={{color:"#ff4444",fontSize:12}}>{stripeErr}</div>}
               </div>
             )}
+            {method==="crypto"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{padding:"16px",borderRadius:10,border:"1px solid #1e1e2e",background:"#0d0d15",textAlign:"center"}}>
+                  <div style={{fontSize:13,color:"#888",marginBottom:4}}>Pay with card or wallet</div>
+                  <div style={{fontSize:11,color:"#444"}}>Converts automatically to USDC and lands in escrow on Base</div>
+                </div>
+              </div>
+            )}
             {method==="apple"&&(<div style={{background:"#000",borderRadius:12,padding:28,textAlign:"center",border:"1px solid #111"}}><div style={{fontSize:40,marginBottom:8}}>🍎</div><div style={{color:"#fff",fontWeight:700}}>Apple Pay</div><div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID</div></div>)}
-            {method==="crypto"&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>{[["🦊","MetaMask"],["🔵","Coinbase Wallet"],["🔗","WalletConnect"]].map(([icon,name])=>(<button key={name} style={{padding:"13px 16px",borderRadius:10,cursor:"pointer",border:"1px solid #1e1e2e",background:"#0d0d15",color:"#fff",fontSize:14,textAlign:"left",display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:24}}>{icon}</span>{name}</button>))}</div>)}
             {err&&<div style={{color:"#ff4444",fontSize:12,marginTop:10}}>{err}</div>}
             <button onClick={pay} disabled={processing} style={primaryBtn({marginTop:16,background:processing?"#1a1a1a":"linear-gradient(90deg,#ff4444,#ff8800)",cursor:processing?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:processing?0.7:1})}>
-              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Processing...</>:`Donate $${amtNum.toFixed(2)}`}
+              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>{method==="crypto"?"Opening secure payment...":"Processing..."}</>:method==="crypto"?`Continue with $${amtNum.toFixed(2)} →`:`Donate $${amtNum.toFixed(2)}`}
             </button>
             <button onClick={()=>setStep(1)} style={{width:"100%",padding:"10px",marginTop:6,background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer"}}>← Back</button>
           </div>
@@ -793,9 +832,19 @@ function DonateModal({campaign,onClose,onShowTos}) {
         {step===3&&(
           <div style={{padding:44,textAlign:"center"}} className="fade-in">
             <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 20px",background:"rgba(255,68,68,0.08)",border:"2px solid #ff4444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>✓</div>
-            <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Donation sent!</h2>
-            <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}><strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> is on its way. Instantly. Permanently. No platform can touch it.</p>
-            <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>✓ Confirmed on Base · {CONTRACT.slice(0,16)}...</div>
+            {method==="crypto"?(
+              <>
+                <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Almost there!</h2>
+                <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}>We opened a secure payment window in a new tab. Once you complete it there, <strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> in USDC lands directly in escrow on Base. Instantly. Permanently. No platform can touch it.</p>
+                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>→ Escrow contract · {CONTRACT.slice(0,16)}...</div>
+              </>
+            ):(
+              <>
+                <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Donation sent!</h2>
+                <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}><strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> is on its way to the recipient's bank account via Stripe.</p>
+                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>✓ Payment confirmed · Campaign #{campaign.id}</div>
+              </>
+            )}
             <div style={{fontSize:11,color:"#2a2a3a",marginBottom:20,lineHeight:1.6}}>Donations through FundOff are generally not tax deductible unless the campaign is for a registered nonprofit. Consult a tax professional for your situation.</div>
             <button onClick={onClose} style={ghostBtn({padding:"12px 28px"})}>Close</button>
           </div>
