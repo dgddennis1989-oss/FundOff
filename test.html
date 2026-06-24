@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>FundOff Test</title>
+  <style>
+    body { background: #09090f; color: white; font-family: sans-serif; padding: 40px; }
+    .box { background: #111; border: 1px solid #333; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .ok { color: #22cc88; } .fail { color: #ff4444; }
+  </style>
+</head>
+<body>
+  <h2>FundOff - Script Loader Test</h2>
+  <div class="box" id="s1">Checking...</div>
+  <div class="box" id="s2">Waiting...</div>
+  <div class="box" id="s3">Waiting...</div>
+  <div class="box" id="s4">Waiting...</div>
+
+  <script>
+    document.getElementById('s1').innerHTML = '<span class="ok">HTML loaded correctly</span>';
+  </script>
+
+  <script 
+    src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"
+    onload="document.getElementById('s2').innerHTML='<span class=ok>React loaded from cdnjs</span>'"
+    onerror="document.getElementById('s2').innerHTML='<span class=fail>React FAILED - cdnjs blocked</span>'">
+  </script>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"
+    onload="document.getElementById('s3').innerHTML='<span class=ok>ReactDOM loaded from cdnjs</span>'"
+    onerror="document.getElementById('s3').innerHTML='<span class=fail>ReactDOM FAILED - cdnjs blocked</span>'">
+  </script>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"
+    onload="document.getElementById('s4').innerHTML='<span class=ok>Babel loaded from cdnjs</span>'"
+    onerror="document.getElementById('s4').innerHTML='<span class=fail>Babel FAILED - cdnjs blocked</span>'">
+  </script>
+</body>
+</html>
