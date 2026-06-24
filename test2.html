@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>FundOff Babel Test</title>
+  <style>
+    body { background: #09090f; color: white; font-family: sans-serif; padding: 40px; }
+    .box { background: #111; border: 1px solid #333; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .ok { color: #22cc88; } .fail { color: #ff4444; }
+  </style>
+</head>
+<body>
+  <h2>Babel JSX Test</h2>
+  <div class="box" id="s1">CDN loading...</div>
+  <div class="box" id="s2">Babel pending...</div>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"
+    onload="document.getElementById('s1').innerHTML='<span class=ok>All CDNs loaded</span>'"
+    onerror="document.getElementById('s1').innerHTML='<span class=fail>CDN failed</span>'">
+  </script>
+
+  <script type="text/babel">
+    try {
+      const { useState } = React;
+      function App() {
+        const [count, setCount] = useState(0);
+        return (
+          <div>
+            <div className="box">
+              <span className="ok">Babel + React + JSX working correctly</span>
+            </div>
+            <div className="box">
+              <button onClick={() => setCount(count + 1)} style={{padding:"10px 20px",background:"#ff4444",border:"none",color:"white",borderRadius:"8px",cursor:"pointer"}}>
+                Clicked {count} times
+              </button>
+            </div>
+          </div>
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+      document.getElementById('s2').innerHTML = '<span class="ok">Babel compiled and rendered successfully</span>';
+    } catch(e) {
+      document.getElementById('s2').innerHTML = '<span class="fail">Babel error: ' + e.toString() + '</span>';
+    }
+  </script>
+</body>
+</html>
