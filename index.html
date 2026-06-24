@@ -64,7 +64,7 @@ const sanitize = str => {
     .replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;")
     .replace(/'/g,"&#x27;")
-    .replace(/\//g,"&#x2F;")
+    .replace(/[/]/g,"&#x2F;")
     .slice(0, 5000); // max length cap
 };
 const STRIPE_PK    = "pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz";
@@ -98,9 +98,9 @@ const primaryBtn = (x={}) => ({ padding:"14px", borderRadius:11, border:"none", 
 const ghostBtn   = (x={}) => ({ padding:"10px 18px", borderRadius:10, border:"1px solid #1a1a28", background:"none", color:"#555", fontSize:13, cursor:"pointer", fontWeight:500, letterSpacing:"-0.01em", transition:"border-color 0.15s, color 0.15s", ...x });
 const cardStyle  = { background:"#0d0d14", border:"1px solid #16161f", borderRadius:16 };
 
-const fmt = u => { const n=u/1e6; if(n>=1e6) return `$${(n/1e6).toFixed(1)}M`; if(n>=1000) return `$${(n/1000).toFixed(0)}k`; return `$${n.toFixed(0)}`; };
+const fmt = u => { const n=u/1e6; if(n>=1e6) return "$"+(n/1e6).toFixed(1)+"M"; if(n>=1000) return "$"+(n/1000).toFixed(0)+"k"; return "$"+n.toFixed(0); };
 const pct = (r,g) => Math.min(100,Math.round((r/g)*100));
-const ago = ts => { const d=Math.floor(Date.now()/1000-ts); if(d<3600) return `${Math.floor(d/60)}m ago`; if(d<86400) return `${Math.floor(d/3600)}h ago`; return `${Math.floor(d/86400)}d ago`; };
+const ago = ts => { const d=Math.floor(Date.now()/1000-ts); if(d<3600) return Math.floor(d/60)+"m ago"; if(d<86400) return Math.floor(d/3600)+"h ago"; return Math.floor(d/86400)+"d ago"; };
 
 // --- Waitlist Banner 
 function WaitlistBanner() {
@@ -117,8 +117,8 @@ function WaitlistBanner() {
     // In production this hits your backend - for now stores locally + opens mailto
     localStorage.setItem(WAITLIST_KEY, email);
     const sub  = "FundOff Early Access Request";
-    const body = `Email: ${email}\nJoined waitlist at: ${new Date().toISOString()}\nPage: fundoff.org`;
-    window.open(`mailto:hello@fundoff.org?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`,"_blank");
+    const body = "Email: "+email+"\nJoined waitlist at: "+new Date().toISOString()+"\nPage: fundoff.org";
+    window.open("mailto:hello@fundoff.org?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body),"_blank");
     setDone(true);
   };
 
@@ -179,8 +179,8 @@ function VerifyBadge({level,socialHandle,onClick}) {
   const v=VERIFY[level]||VERIFY.none;
   if(!v.label) return null;
   return (
-    <span onClick={onClick} title={v.desc} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,cursor:onClick?"pointer":"default",border:`1px solid ${v.color}`,color:v.color,background:`${v.color}15`,textTransform:"uppercase",letterSpacing:0.8}}>
-      {v.badge} {v.label}{socialHandle&&` . @${socialHandle}`}
+    <span onClick={onClick} title={v.desc} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,cursor:onClick?"pointer":"default",border:"1px solid "+v.color,color:v.color,background:v.color+"15",textTransform:"uppercase",letterSpacing:0.8}}>
+      {v.badge} {v.label}{socialHandle&&" . @"+socialHandle}
     </span>
   );
 }
@@ -196,7 +196,7 @@ function VerifyInfoModal({campaign,onClose}) {
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
         </div>
         <div style={{padding:22}}>
-          <div style={{background:`${(v.color||"#555")}10`,border:`1px solid ${(v.color||"#555")}30`,borderRadius:12,padding:16,marginBottom:16,textAlign:"center"}}>
+          <div style={{background:(v.color||"#555")+"10",border:"1px solid "+(v.color||"#555")+"30",borderRadius:12,padding:16,marginBottom:16,textAlign:"center"}}>
             <div style={{fontSize:32,marginBottom:8}}>{v.badge||"?"}</div>
             <div style={{fontWeight:800,color:v.color||"#555",fontSize:14,marginBottom:4}}>{v.label||"Unverified"}</div>
             <div style={{color:"#555",fontSize:12,lineHeight:1.6}}>{v.desc||"This campaign has not been verified."}</div>
@@ -228,9 +228,9 @@ function VerifyRequestModal({onClose}) {
   const [sent,setSent]=useState(false);
   const submit=()=>{
     if(!handle||!proofUrl||!campaignId) return;
-    const sub=`FundOff Verification Request - @${handle} on ${platform}`;
-    const body=`Campaign ID: ${campaignId}\nPlatform: ${platform}\nHandle: @${handle}\nProof URL: ${proofUrl}\nSent: ${new Date().toISOString()}`;
-    window.location.href=`mailto:hello@fundoff.org?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+    const sub="FundOff Verification Request - @"+handle+" on "+platform;
+    const body="Campaign ID: "+campaignId+"\nPlatform: "+platform+"\nHandle: @"+handle+"\nProof URL: "+proofUrl+"\nSent: "+new Date().toISOString();
+    window.location.href="mailto:hello@fundoff.org?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body);
     setSent(true);
   };
   return (
@@ -243,7 +243,7 @@ function VerifyRequestModal({onClose}) {
         {!sent?(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:14}}>
             {[{level:"social",icon:"✓",title:"Social Verified - Free",desc:"Link your Twitter, YouTube, or Instagram"},{level:"id",icon:"🛡",title:"ID Verified - $4.99",desc:"Government ID check via Stripe Identity"},{level:"manual",icon:"⭐",title:"FundOff Verified - High-profile only",desc:"Manual review for notable campaigns"}].map(t=>(
-              <div key={t.level} style={{background:"#0d0d15",border:`1px solid ${VERIFY[t.level].color}22`,borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
+              <div key={t.level} style={{background:"#0d0d15",border:"1px solid "+VERIFY[t.level].color+"22",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
                 <span style={{fontSize:18,flexShrink:0}}>{t.icon}</span>
                 <div><div style={{fontSize:12,fontWeight:700,color:VERIFY[t.level].color}}>{t.title}</div><div style={{fontSize:11,color:"#555",marginTop:2}}>{t.desc}</div></div>
               </div>
@@ -290,8 +290,8 @@ function TierBadge({tier}) {
   const t=TIERS[tier]||TIERS.Free;
   return <span style={{
     fontSize:9,fontWeight:600,padding:"3px 8px",
-    borderRadius:5,border:`1px solid ${t.color}22`,
-    color:t.color,background:`${t.color}0d`,
+    borderRadius:5,border:"1px solid "+t.color+"22",
+    color:t.color,background:t.color+"0d",
     textTransform:"uppercase",letterSpacing:"0.08em",
     fontFamily:"'Inter',sans-serif",
   }}>{t.label}</span>;
@@ -325,7 +325,7 @@ function TosModal({onClose,onAccept,showAcceptBtn}) {
     {t:"8. Fees",b:"2% Free, 1% Pro, 0.5% Elite. Deducted automatically at the contract level."},
     {t:"9. Limitation of Liability",b:"FundOff and its operators are not liable for any damages. Use at your own risk."},
     {t:"10. Governing Law",b:"Wyoming, United States."},
-    {t:"11. Contact",b:`Violations: ${REPORT_EMAIL}\nOther: hello@fundoff.org`},
+    {t:"11. Contact",b:"Violations: "+REPORT_EMAIL+"\nOther: hello@fundoff.org"},
   ];
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:16,backdropFilter:"blur(8px)"}} >
@@ -356,9 +356,9 @@ function ReportModal({campaign,onClose}) {
   const reasons=["Fraud or scam","Violent or harmful content","Terrorism or extremism","Child exploitation","Harassment or hate speech","Misleading information","Other ToS violation"];
   const submit=()=>{
     if(!reason) return;
-    const sub=`FundOff Report - #${campaign.id}: ${campaign.title}`;
-    const body=`Campaign: ${campaign.id}\nTitle: ${campaign.title}\nReason: ${reason}\nDetails: ${details}\nDate: ${new Date().toISOString()}`;
-    window.location.href=`mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+    const sub="FundOff Report - #"+campaign.id+": "+campaign.title;
+    const body="Campaign: "+campaign.id+"\nTitle: "+campaign.title+"\nReason: "+reason+"\nDetails: "+details+"\nDate: "+new Date().toISOString();
+    window.location.href="mailto:"+REPORT_EMAIL+"?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body);
     setSent(true);
   };
   return (
@@ -418,7 +418,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
 
   const create=()=>{
     if(!agreed){setErr("Please agree to the Terms of Service");return;}
-    const recipient = payoutMethod==="wallet" ? wallet : `${payoutMethod}:${recipientEmail||bankAccount}`;
+    const recipient = payoutMethod==="wallet" ? wallet : payoutMethod+":"+recipientEmail||bankAccount;
     onCreate({
       id:Date.now(),title,description:desc,
       goalUSDC:parseFloat(goal)*1e6,totalRaisedUSDC:0,
@@ -579,7 +579,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                 {Object.entries(TIERS).map(([key,t])=>(
                   <button key={key} onClick={()=>setTier(key)} style={{
                     padding:14,borderRadius:12,cursor:"pointer",textAlign:"left",
-                    border:tier===key?`2px solid ${t.color}`:"1px solid #1e1e2e",
+                    border:tier===key?"2px solid "+t.color:"1px solid #1e1e2e",
                     background:tier===key?t.bg:"#0d0d15",
                     display:"flex",alignItems:"center",gap:12,
                   }}>
@@ -590,7 +590,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                       </div>
                       <div style={{fontSize:11,color:"#444"}}>{t.fee} donation fee . {t.perks[0]}</div>
                     </div>
-                    <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${tier===key?t.color:"#222"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <div style={{width:20,height:20,borderRadius:"50%",border:"2px solid "+tier===key?t.color:"#222",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                       {tier===key&&<div style={{width:10,height:10,borderRadius:"50%",background:t.color}}/>}
                     </div>
                   </button>
@@ -688,7 +688,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
   const feeAmt=+(amtNum*feeNum).toFixed(2);
   const recv=+(amtNum-feeAmt).toFixed(2);
   const fmtCard=v=>v.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
-  const fmtExp=v=>{const c=v.replace(/\D/g,"").slice(0,4);return c.length>=2?`${c.slice(0,2)}/${c.slice(2)}`:c;};
+  const fmtExp=v=>{const c=v.replace(/\D/g,"").slice(0,4);return c.length>=2?c.slice(0,2)+"/"+c.slice(2):c;};
 
   const next=()=>{
     if(!amount||parseFloat(amount)<20){setErr("Minimum $20");return;}
@@ -825,7 +825,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
             {method==="apple"&&(<div style={{background:"#000",borderRadius:12,padding:28,textAlign:"center",border:"1px solid #111"}}><div style={{fontSize:40,marginBottom:8}}>🍎</div><div style={{color:"#fff",fontWeight:700}}>Apple Pay</div><div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID</div></div>)}
             {err&&<div style={{color:"#ff4444",fontSize:12,marginTop:10}}>{err}</div>}
             <button onClick={pay} disabled={processing} style={primaryBtn({marginTop:16,background:processing?"#1a1a1a":"linear-gradient(90deg,#ff4444,#ff8800)",cursor:processing?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:processing?0.7:1})}>
-              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>{method==="crypto"?"Opening secure payment...":"Processing..."}</>:method==="crypto"?`Continue with $${amtNum.toFixed(2)} ->`:`Donate $${amtNum.toFixed(2)}`}
+              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>{method==="crypto"?"Opening secure payment...":"Processing..."}</>:method==="crypto"?"Continue with $"+amtNum.toFixed(2)+" ->":"Donate $"+amtNum.toFixed(2)}
             </button>
             <button onClick={()=>setStep(1)} style={{width:"100%",padding:"10px",marginTop:6,background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer"}}><- Back</button>
           </div>
@@ -865,7 +865,7 @@ function PricingModal({onClose}) {
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:24}}>x</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-          {Object.entries(TIERS).map(([key,t])=>(<div key={key} style={{border:`1px solid ${t.border}`,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}><div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div><div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div><div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div><div style={{flex:1,display:"flex",flexDirection:"column",gap:7}}>{t.perks.map(p=>(<div key={p} style={{fontSize:12,color:"#777",display:"flex",gap:6}}><span style={{color:t.color,flexShrink:0}}>✓</span>{p}</div>))}</div></div>))}
+          {Object.entries(TIERS).map(([key,t])=>(<div key={key} style={{border:"1px solid "+t.border,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}><div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div><div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div><div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div><div style={{flex:1,display:"flex",flexDirection:"column",gap:7}}>{t.perks.map(p=>(<div key={p} style={{fontSize:12,color:"#777",display:"flex",gap:6}}><span style={{color:t.color,flexShrink:0}}>✓</span>{p}</div>))}</div></div>))}
         </div>
         <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.08)",borderRadius:10,fontSize:12,color:"#444",textAlign:"center"}}>All tiers: blockchain protected . uncensorable . Social/ID/FundOff verification available</div>
       </div>
@@ -889,7 +889,7 @@ function CampaignCard({c,onDonate,onReport}) {
         onMouseLeave={()=>{setHov(false);setMenu(false);}}
         style={{
           background:"#0d0d14",
-          border:`1px solid ${hov?"#ff4444":"#16161f"}`,
+          border:"1px solid "+hov?"#ff4444":"#16161f",
           borderRadius:14,
           overflow:"hidden",
           cursor:"pointer",
@@ -919,7 +919,7 @@ function CampaignCard({c,onDonate,onReport}) {
         <div onClick={()=>onDonate(c)}>
           {/* Progress bar at very top */}
           <div style={{height:2,background:"#0a0a12"}}>
-            <div style={{width:`${p}%`,height:"100%",background:"#ff4444",transition:"width 1s ease"}}/>
+            <div style={{width:p+"%",height:"100%",background:"#ff4444",transition:"width 1s ease"}}/>
           </div>
 
           <div style={{padding:"20px 20px 18px"}}>
@@ -965,7 +965,7 @@ function CampaignCard({c,onDonate,onReport}) {
 
             {/* Progress bar */}
             <div style={{background:"#111",borderRadius:99,height:3,overflow:"hidden",marginBottom:16}}>
-              <div style={{width:`${p}%`,height:"100%",background:"#ff4444",borderRadius:99}}/>
+              <div style={{width:p+"%",height:"100%",background:"#ff4444",borderRadius:99}}/>
             </div>
 
             {/* Footer */}
@@ -1207,7 +1207,7 @@ function App() {
           ))}
           <span onClick={()=>{setTosFromBanner(false);setShowTos(true);}} style={{fontSize:12,color:"#2a2a3a",cursor:"pointer",fontWeight:500}}>Terms</span>
           <span onClick={()=>setShowVerifyReq(true)} style={{fontSize:12,color:"#2a2a3a",cursor:"pointer",fontWeight:500}}>Get Verified</span>
-          <a href={`mailto:${REPORT_EMAIL}`} style={{fontSize:12,color:"#2a2a3a",textDecoration:"none",fontWeight:500}}>Report</a>
+          <a href={"mailto:"+REPORT_EMAIL} style={{fontSize:12,color:"#2a2a3a",textDecoration:"none",fontWeight:500}}>Report</a>
           <a href="mailto:hello@fundoff.org" style={{fontSize:12,color:"#2a2a3a",textDecoration:"none",fontWeight:500}}>Contact</a>
         </div>
         <div style={{fontSize:10,color:"#111",fontFamily:"monospace",letterSpacing:"0.02em"}}>
