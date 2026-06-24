@@ -683,7 +683,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
     };
   },[step,method]);
 
-  const feeNum=parseFloat(TIERS[campaign.tier]?.fee||"2%")/100;
+  const feeNum=parseFloat((TIERS[campaign.tier] ? TIERS[campaign.tier].fee : "2%"))/100;
   const amtNum=parseFloat(amount)||0;
   const feeAmt=+(amtNum*feeNum).toFixed(2);
   const recv=+(amtNum-feeAmt).toFixed(2);
@@ -774,7 +774,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",color:"#444",fontSize:17,fontWeight:600}}>$</span>
               <input type="number" placeholder="Other amount" value={amount} onChange={e=>setAmount(e.target.value)} min="20" style={{...inp,paddingLeft:28}}/>
             </div>
-            <div style={{fontSize:11,color:"#2a2a3a",marginBottom:14}}>Minimum $20 . No maximum . {TIERS[campaign.tier]?.fee||"2%"} fee</div>
+            <div style={{fontSize:11,color:"#2a2a3a",marginBottom:14}}>Minimum $20 . No maximum . {(TIERS[campaign.tier] ? TIERS[campaign.tier].fee : "2%")} fee</div>
             {amtNum>=20&&(<div style={{background:"#0a0a12",border:"1px solid #111",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{color:"#444"}}>Platform fee</span><span style={{color:"#444"}}>${feeAmt}</span></div><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#aaa",fontWeight:600}}>Recipient receives</span><span style={{color:"#ff4444",fontWeight:700}}>${recv}</span></div></div>)}
             <textarea placeholder="Leave a message (optional)" value={message} onChange={e=>setMessage(e.target.value)} rows={2} style={{...inp,resize:"none",marginBottom:14}}/>
             <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:14}}>
@@ -970,7 +970,7 @@ function CampaignCard({c,onDonate,onReport}) {
 
             {/* Footer */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span style={{fontSize:10,color:"#2a2a3a",letterSpacing:"0.04em"}}>ON-CHAIN . {TIERS[c.tier]?.fee||"2%"} FEE</span>
+              <span style={{fontSize:10,color:"#2a2a3a",letterSpacing:"0.04em"}}>ON-CHAIN . {(TIERS[c.tier] ? TIERS[c.tier].fee : "2%")} FEE</span>
               <span style={{
                 fontSize:12,color:"#ff4444",fontWeight:600,
                 padding:"5px 12px",borderRadius:6,
