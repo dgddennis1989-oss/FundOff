@@ -82,9 +82,9 @@ const WAITLIST_KEY = "fundoff_waitlist_joined";
 
 const VERIFY = {
   none:   { label:null, badge:null, color:null, desc:null },
-  social: { label:"Social Verified", badge:"✓", color:"#4488ff", desc:"Identity confirmed via linked social media account" },
-  id:     { label:"ID Verified", badge:"🛡", color:"#22cc88", desc:"Government ID verified via Stripe Identity" },
-  manual: { label:"Verified by FundOff", badge:"⭐", color:"#ff8800", desc:"Manually verified by FundOff team" },
+  social: { label:"Social Verified", badge:"V", color:"#4488ff", desc:"Identity confirmed via linked social media account" },
+  id:     { label:"ID Verified", badge:"S", color:"#22cc88", desc:"Government ID verified via Stripe Identity" },
+  manual: { label:"Verified by FundOff", badge:"*", color:"#ff8800", desc:"Manually verified by FundOff team" },
 };
 
 const TIERS = {
@@ -166,7 +166,7 @@ function WaitlistBanner() {
           background:"rgba(34,204,136,0.08)",border:"1px solid rgba(34,204,136,0.2)",
           borderRadius:10,padding:"12px 16px",display:"inline-flex",alignItems:"center",gap:8,
         }}>
-          <span style={{color:"#22cc88",fontSize:16}}>✓</span>
+          <span style={{color:"#22cc88",fontSize:16}}>OK</span>
           <span style={{color:"#22cc88",fontSize:13,fontWeight:600}}>You're on the list! We'll email you when ready.</span>
         </div>
       )}
@@ -211,7 +211,7 @@ function VerifyInfoModal({campaign,onClose}) {
             </div>
           )}
           <div style={{background:"#0a0a12",borderRadius:10,padding:12}}>
-            <div style={{fontSize:11,color:"#444",lineHeight:1.7}}>⚠️ Verification confirms identity only - not campaign claims. Always do your own research before donating.</div>
+            <div style={{fontSize:11,color:"#444",lineHeight:1.7}}>(!) Verification confirms identity only - not campaign claims. Always do your own research before donating.</div>
           </div>
         </div>
       </div>
@@ -242,7 +242,7 @@ function VerifyRequestModal({onClose}) {
         </div>
         {!sent?(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:14}}>
-            {[{level:"social",icon:"✓",title:"Social Verified - Free",desc:"Link your Twitter, YouTube, or Instagram"},{level:"id",icon:"🛡",title:"ID Verified - $4.99",desc:"Government ID check via Stripe Identity"},{level:"manual",icon:"⭐",title:"FundOff Verified - High-profile only",desc:"Manual review for notable campaigns"}].map(t=>(
+            {[{level:"social",icon:"OK",title:"Social Verified - Free",desc:"Link your Twitter, YouTube, or Instagram"},{level:"id",icon:"[S]",title:"ID Verified - $4.99",desc:"Government ID check via Stripe Identity"},{level:"manual",icon:"*",title:"FundOff Verified - High-profile only",desc:"Manual review for notable campaigns"}].map(t=>(
               <div key={t.level} style={{background:"#0d0d15",border:"1px solid "+VERIFY[t.level].color+"22",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
                 <span style={{fontSize:18,flexShrink:0}}>{t.icon}</span>
                 <div><div style={{fontSize:12,fontWeight:700,color:VERIFY[t.level].color}}>{t.title}</div><div style={{fontSize:11,color:"#555",marginTop:2}}>{t.desc}</div></div>
@@ -274,7 +274,7 @@ function VerifyRequestModal({onClose}) {
           </div>
         ):(
           <div style={{padding:40,textAlign:"center"}} className="fade-in">
-            <div style={{fontSize:44,marginBottom:16}}>✓</div>
+            <div style={{fontSize:44,marginBottom:16}}>OK</div>
             <h3 style={{color:"#fff",marginBottom:8,fontWeight:800}}>Request sent!</h3>
             <p style={{color:"#555",fontSize:13,lineHeight:1.6,marginBottom:20}}>We'll add your badge within 24 hours.</p>
             <button onClick={onClose} style={ghostBtn()}>Close</button>
@@ -377,7 +377,7 @@ function ReportModal({campaign,onClose}) {
           </div>
         ):(
           <div style={{padding:40,textAlign:"center"}} className="fade-in">
-            <div style={{fontSize:44,marginBottom:16}}>✓</div>
+            <div style={{fontSize:44,marginBottom:16}}>OK</div>
             <h3 style={{color:"#fff",marginBottom:8,fontWeight:800}}>Report submitted</h3>
             <p style={{color:"#555",fontSize:13,marginBottom:20}}>Reviewed within 24 hours.</p>
             <button onClick={onClose} style={ghostBtn()}>Close</button>
@@ -495,11 +495,11 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                   background:payoutMethod==="bank"?"rgba(255,68,68,0.06)":"#0d0d15",
                   display:"flex",alignItems:"flex-start",gap:12,
                 }}>
-                  <span style={{fontSize:24,flexShrink:0}}>🏦</span>
+                  <span style={{fontSize:24,flexShrink:0}}>[Bank]</span>
                   <div>
                     <div style={{fontWeight:700,color:payoutMethod==="bank"?"#fff":"#888",fontSize:14,marginBottom:3}}>Bank Account</div>
                     <div style={{fontSize:12,color:"#555",lineHeight:1.5}}>Donations convert to USD and deposit directly to your bank. No crypto needed.</div>
-                    {payoutMethod==="bank"&&<div style={{fontSize:10,color:"#ff4444",marginTop:4,fontWeight:600}}>⚡ Recommended - easiest for recipients</div>}
+                    {payoutMethod==="bank"&&<div style={{fontSize:10,color:"#ff4444",marginTop:4,fontWeight:600}}>~ Recommended - easiest for recipients</div>}
                   </div>
                 </button>
 
@@ -510,7 +510,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                   background:payoutMethod==="email"?"rgba(68,136,255,0.06)":"#0d0d15",
                   display:"flex",alignItems:"flex-start",gap:12,
                 }}>
-                  <span style={{fontSize:24,flexShrink:0}}>📧</span>
+                  <span style={{fontSize:24,flexShrink:0}}>[Email]</span>
                   <div>
                     <div style={{fontWeight:700,color:payoutMethod==="email"?"#fff":"#888",fontSize:14,marginBottom:3}}>Email Wallet</div>
                     <div style={{fontSize:12,color:"#555",lineHeight:1.5}}>We create a wallet from your email. Cash out to your bank anytime in one click.</div>
@@ -525,7 +525,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                   background:payoutMethod==="wallet"?"rgba(34,204,136,0.06)":"#0d0d15",
                   display:"flex",alignItems:"flex-start",gap:12,
                 }}>
-                  <span style={{fontSize:24,flexShrink:0}}>⟠</span>
+                  <span style={{fontSize:24,flexShrink:0}}>ETH</span>
                   <div>
                     <div style={{fontWeight:700,color:payoutMethod==="wallet"?"#fff":"#888",fontSize:14,marginBottom:3}}>Crypto Wallet</div>
                     <div style={{fontSize:12,color:"#555",lineHeight:1.5}}>Receive USDC directly to your existing wallet. For crypto-native users.</div>
@@ -542,7 +542,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                 <input value={bankName} onChange={e=>setBankName(e.target.value)} placeholder="Account holder name" style={inp}/>
                 <input value={bankRouting} onChange={e=>setBankRouting(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="Routing number (9 digits)" style={inp}/>
                 <input value={bankAccount} onChange={e=>setBankAccount(e.target.value.replace(/\D/g,""))} placeholder="Account number" style={inp}/>
-                <div style={{fontSize:10,color:"#2a2a3a",lineHeight:1.6}}>🔒 Bank details are encrypted. Stripe handles all payouts securely - we never store your account number.</div>
+                <div style={{fontSize:10,color:"#2a2a3a",lineHeight:1.6}}>[Lock] Bank details are encrypted. Stripe handles all payouts securely - we never store your account number.</div>
               </div>
             )}
 
@@ -599,7 +599,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
             </div>
 
             <div style={{background:"rgba(68,136,255,0.06)",border:"1px solid rgba(68,136,255,0.15)",borderRadius:10,padding:"12px 14px"}}>
-              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:4}}>✓ Get verified after launch - free</div>
+              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:4}}>OK Get verified after launch - free</div>
               <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>Post on your social: "My official FundOff campaign" then email hello@fundoff.org for a Social Verified badge.</div>
             </div>
 
@@ -610,7 +610,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
               </span>
             </label>
             {err&&<div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
-            <button onClick={create} style={primaryBtn()}>🚀 Launch Campaign</button>
+            <button onClick={create} style={primaryBtn()}>[Launch] Launch Campaign</button>
             <button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"8px"}}><- Back</button>
           </div>
         )}
@@ -618,7 +618,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
         {/* Step 4 - Done */}
         {step===4&&(
           <div style={{padding:44,textAlign:"center"}} className="fade-in">
-            <div style={{fontSize:52,marginBottom:16}}>⚡</div>
+            <div style={{fontSize:52,marginBottom:16}}>~</div>
             <h2 style={{color:"#fff",margin:"0 0 10px",fontWeight:800}}>Campaign Live!</h2>
             <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 16px"}}>
               Your campaign is on Base blockchain. Uncensorable. Permanent.
@@ -627,7 +627,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
               {payoutMethod==="wallet"&&" USDC will arrive in your wallet instantly after each donation."}
             </p>
             <div style={{background:"rgba(68,136,255,0.06)",border:"1px solid rgba(68,136,255,0.15)",borderRadius:10,padding:14,marginBottom:20,textAlign:"left"}}>
-              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:6}}>✓ Get verified - build donor trust</div>
+              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:6}}>OK Get verified - build donor trust</div>
               <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>Post on social: "My official FundOff campaign is live at fundoff.org" then email hello@fundoff.org with the link for a free Social Verified badge.</div>
             </div>
             <button onClick={onClose} style={primaryBtn({padding:"13px 28px",width:"auto"})}>Done</button>
@@ -758,7 +758,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
             {campaign.verifyLevel&&campaign.verifyLevel!=="none"
           ?<div style={{marginTop:6}}><VerifyBadge level={campaign.verifyLevel} socialHandle={campaign.socialHandle}/></div>
           :<div style={{marginTop:6,fontSize:11,color:"#ff8800",background:"rgba(255,136,0,0.08)",border:"1px solid rgba(255,136,0,0.15)",borderRadius:6,padding:"4px 8px"}}>
-            ⚠️ Unverified campaign. Donations cannot be reversed. Verify legitimacy before donating.
+            (!) Unverified campaign. Donations cannot be reversed. Verify legitimacy before donating.
           </div>
         }
           </div>
@@ -783,7 +783,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
             </label>
             {err&&<div style={{color:"#ff4444",fontSize:12,marginBottom:10}}>{err}</div>}
             <button onClick={next} style={primaryBtn()}>Continue -></button>
-            <div style={{textAlign:"center",fontSize:10,color:"#1e1e2e",marginTop:10}}>🔒 Funds go directly to recipient</div>
+            <div style={{textAlign:"center",fontSize:10,color:"#1e1e2e",marginTop:10}}>[Lock] Funds go directly to recipient</div>
           </div>
         )}
         {step===2&&(
@@ -793,16 +793,16 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <span style={{color:"#ff4444",fontSize:20,fontWeight:800}}>${amtNum.toFixed(2)}</span>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10}}>
-              {[["crypto","⟠ Crypto"],["card","💳 Card"],["apple","🍎 Apple Pay"]].map(([id,label])=>(<button key={id} onClick={()=>setMethod(id)} style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",fontWeight:600,fontSize:11,border:method===id?"2px solid #ff4444":"1px solid #1e1e2e",background:method===id?"rgba(255,68,68,0.1)":"#0d0d15",color:method===id?"#ff4444":"#555"}}>{label}</button>))}
+              {[["crypto","ETH Crypto"],["card","[Card] Card"],["apple","[Apple] Apple Pay"]].map(([id,label])=>(<button key={id} onClick={()=>setMethod(id)} style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",fontWeight:600,fontSize:11,border:method===id?"2px solid #ff4444":"1px solid #1e1e2e",background:method===id?"rgba(255,68,68,0.1)":"#0d0d15",color:method===id?"#ff4444":"#555"}}>{label}</button>))}
             </div>
             {method==="crypto"&&(
               <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#22cc88",background:"rgba(34,204,136,0.06)",border:"1px solid rgba(34,204,136,0.15)",borderRadius:8,padding:"7px 10px",marginBottom:14}}>
-                🔒 Fully on-chain. Pay with card or wallet - funds land directly in escrow. No platform, court, or company can touch it.
+                [Lock] Fully on-chain. Pay with card or wallet - funds land directly in escrow. No platform, court, or company can touch it.
               </div>
             )}
             {(method==="card"||method==="apple")&&(
               <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#ff8800",background:"rgba(255,136,0,0.06)",border:"1px solid rgba(255,136,0,0.15)",borderRadius:8,padding:"7px 10px",marginBottom:14}}>
-                ⚠️ Processed by Stripe to the recipient's bank account. Not on-chain and not protected the same way crypto donations are.
+                (!) Processed by Stripe to the recipient's bank account. Not on-chain and not protected the same way crypto donations are.
               </div>
             )}
             {method==="card"&&(
@@ -822,7 +822,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
                 </div>
               </div>
             )}
-            {method==="apple"&&(<div style={{background:"#000",borderRadius:12,padding:28,textAlign:"center",border:"1px solid #111"}}><div style={{fontSize:40,marginBottom:8}}>🍎</div><div style={{color:"#fff",fontWeight:700}}>Apple Pay</div><div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID</div></div>)}
+            {method==="apple"&&(<div style={{background:"#000",borderRadius:12,padding:28,textAlign:"center",border:"1px solid #111"}}><div style={{fontSize:40,marginBottom:8}}>[Apple]</div><div style={{color:"#fff",fontWeight:700}}>Apple Pay</div><div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID</div></div>)}
             {err&&<div style={{color:"#ff4444",fontSize:12,marginTop:10}}>{err}</div>}
             <button onClick={pay} disabled={processing} style={primaryBtn({marginTop:16,background:processing?"#1a1a1a":"linear-gradient(90deg,#ff4444,#ff8800)",cursor:processing?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:processing?0.7:1})}>
               {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>{method==="crypto"?"Opening secure payment...":"Processing..."}</>:method==="crypto"?"Continue with $"+amtNum.toFixed(2)+" ->":"Donate $"+amtNum.toFixed(2)}
@@ -832,7 +832,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
         )}
         {step===3&&(
           <div style={{padding:44,textAlign:"center"}} className="fade-in">
-            <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 20px",background:"rgba(255,68,68,0.08)",border:"2px solid #ff4444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>✓</div>
+            <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 20px",background:"rgba(255,68,68,0.08)",border:"2px solid #ff4444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>OK</div>
             {method==="crypto"?(
               <>
                 <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Almost there!</h2>
@@ -843,7 +843,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <>
                 <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Donation sent!</h2>
                 <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}><strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> is on its way to the recipient's bank account via Stripe.</p>
-                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>✓ Payment confirmed . Campaign #{campaign.id}</div>
+                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>OK Payment confirmed . Campaign #{campaign.id}</div>
               </>
             )}
             <div style={{fontSize:11,color:"#2a2a3a",marginBottom:20,lineHeight:1.6}}>Donations through FundOff are generally not tax deductible unless the campaign is for a registered nonprofit. Consult a tax professional for your situation.</div>
@@ -865,7 +865,7 @@ function PricingModal({onClose}) {
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:24}}>x</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-          {Object.entries(TIERS).map(([key,t])=>(<div key={key} style={{border:"1px solid "+t.border,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}><div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div><div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div><div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div><div style={{flex:1,display:"flex",flexDirection:"column",gap:7}}>{t.perks.map(p=>(<div key={p} style={{fontSize:12,color:"#777",display:"flex",gap:6}}><span style={{color:t.color,flexShrink:0}}>✓</span>{p}</div>))}</div></div>))}
+          {Object.entries(TIERS).map(([key,t])=>(<div key={key} style={{border:"1px solid "+t.border,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}><div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div><div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div><div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div><div style={{flex:1,display:"flex",flexDirection:"column",gap:7}}>{t.perks.map(p=>(<div key={p} style={{fontSize:12,color:"#777",display:"flex",gap:6}}><span style={{color:t.color,flexShrink:0}}>OK</span>{p}</div>))}</div></div>))}
         </div>
         <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.08)",borderRadius:10,fontSize:12,color:"#444",textAlign:"center"}}>All tiers: blockchain protected . uncensorable . Social/ID/FundOff verification available</div>
       </div>
@@ -995,7 +995,7 @@ function EmptyState({onStart}) {
         border:"1px solid #16161f",background:"#0d0d14",
         display:"flex",alignItems:"center",justifyContent:"center",
         margin:"0 auto 20px",fontSize:22,
-      }}>🛡</div>
+      }}>[S]</div>
       <h3 style={{
         fontFamily:"'Space Grotesk',sans-serif",
         color:"#fff",fontSize:20,fontWeight:700,
@@ -1053,7 +1053,7 @@ function App() {
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <a href="/about.html" style={{...ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600}),textDecoration:"none",display:"inline-flex",alignItems:"center"}}>About</a>
           <a href="/faq.html" style={{...ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600}),textDecoration:"none",display:"inline-flex",alignItems:"center"}}>FAQ</a>
-          <button onClick={()=>setShowVerifyReq(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600,color:"#4488ff",borderColor:"rgba(68,136,255,0.3)"})}>✓ Get Verified</button>
+          <button onClick={()=>setShowVerifyReq(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600,color:"#4488ff",borderColor:"rgba(68,136,255,0.3)"})}>OK Get Verified</button>
           <button onClick={()=>setShowPricing(true)} style={ghostBtn({padding:"7px 14px",fontSize:12,fontWeight:600})}>Pricing</button>
           <button onClick={()=>setShowCreate(true)} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"linear-gradient(90deg,#ff4444,#ff8800)",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Start Campaign</button>
         </div>
@@ -1159,7 +1159,7 @@ function App() {
       {featured.length>0&&(
         <div style={{maxWidth:1100,margin:"0 auto",padding:"0 24px 40px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-            <span style={{fontSize:12,fontWeight:800,color:"#ff8800",letterSpacing:0.5}}>⭐ FEATURED CAMPAIGNS</span>
+            <span style={{fontSize:12,fontWeight:800,color:"#ff8800",letterSpacing:0.5}}>* FEATURED CAMPAIGNS</span>
             <span style={{fontSize:10,background:"rgba(255,136,0,0.08)",border:"1px solid rgba(255,136,0,0.15)",color:"#ff8800",padding:"2px 8px",borderRadius:99}}>Elite Tier</span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:18}}>
