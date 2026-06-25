@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FundOff — The Uncensorable Donation Platform</title>
+  <title>FundOff - The Uncensorable Donation Platform</title>
   <meta name="description" content="The donation platform that can't be bullied. No judges. No freezes. No middlemen."/>
-  <meta property="og:title" content="FundOff — Uncensorable Donations"/>
+  <meta property="og:title" content="FundOff - Uncensorable Donations"/>
   <meta property="og:description" content="GoFundMe took down $454,000 overnight. That can never happen here."/>
   <meta property="og:url" content="https://fundoff.org"/>
   <meta property="og:type" content="website"/>
   <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="FundOff — The Uncensorable Donation Platform"/>
+  <meta name="twitter:title" content="FundOff - The Uncensorable Donation Platform"/>
   <meta name="twitter:description" content="No judges. No freezes. No middlemen. Campaigns live on the blockchain forever."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <script src="https://js.stripe.com/v3/"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://js.stripe.com/v3/" async></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #09090f; color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; }
@@ -48,13 +48,14 @@
   </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#09090f;flex-direction:column;gap:16px"><svg width="48" height="48" viewBox="0 0 68 68"><circle cx="34" cy="34" r="34" fill="#0d0d14"/><rect x="17" y="14" width="7" height="40" rx="2" fill="white"/><rect x="17" y="14" width="28" height="7" rx="2" fill="white"/><rect x="17" y="27" width="20" height="6" rx="2" fill="white"/><circle cx="51" cy="30" r="6" fill="#ff4444"/></svg><div style="font-family:sans-serif;color:#333;font-size:14px">Loading FundOff...</div></div></div>
 <script type="text/babel">
 const { useState, useEffect } = React;
 
-const CONTRACT     = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752";
+const CONTRACT     = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752"; // V1 - direct-send, legacy campaigns still live here
+const CONTRACT_V2  = "0x4BB819722a8374b61B84B450460FF4205112c873"; // V2 - escrow model, withdraw-anytime, dormancy sweep to charity. All new crypto donations go here.
 
-// ─── Security: Input Sanitization ────────────────────────────────────────────
+// --- Security: Input Sanitization 
 const sanitize = str => {
   if(!str) return "";
   return String(str)
@@ -63,7 +64,7 @@ const sanitize = str => {
     .replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;")
     .replace(/'/g,"&#x27;")
-    .replace(/\//g,"&#x2F;")
+    .replace(/[/]/g,"&#x2F;")
     .slice(0, 5000); // max length cap
 };
 const STRIPE_PK    = "pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz";
@@ -97,11 +98,11 @@ const primaryBtn = (x={}) => ({ padding:"14px", borderRadius:11, border:"none", 
 const ghostBtn   = (x={}) => ({ padding:"10px 18px", borderRadius:10, border:"1px solid #1a1a28", background:"none", color:"#555", fontSize:13, cursor:"pointer", fontWeight:500, letterSpacing:"-0.01em", transition:"border-color 0.15s, color 0.15s", ...x });
 const cardStyle  = { background:"#0d0d14", border:"1px solid #16161f", borderRadius:16 };
 
-const fmt = u => { const n=u/1e6; if(n>=1e6) return `$${(n/1e6).toFixed(1)}M`; if(n>=1000) return `$${(n/1000).toFixed(0)}k`; return `$${n.toFixed(0)}`; };
+const fmt = u => { const n=u/1e6; if(n>=1e6) return "$"+(n/1e6).toFixed(1)+"M"; if(n>=1000) return "$"+(n/1000).toFixed(0)+"k"; return "$"+n.toFixed(0); };
 const pct = (r,g) => Math.min(100,Math.round((r/g)*100));
-const ago = ts => { const d=Math.floor(Date.now()/1000-ts); if(d<3600) return `${Math.floor(d/60)}m ago`; if(d<86400) return `${Math.floor(d/3600)}h ago`; return `${Math.floor(d/86400)}d ago`; };
+const ago = ts => { const d=Math.floor(Date.now()/1000-ts); if(d<3600) return Math.floor(d/60)+"m ago"; if(d<86400) return Math.floor(d/3600)+"h ago"; return Math.floor(d/86400)+"d ago"; };
 
-// ─── Waitlist Banner ──────────────────────────────────────────────────────────
+// --- Waitlist Banner 
 function WaitlistBanner() {
   const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
@@ -113,11 +114,11 @@ function WaitlistBanner() {
 
   const join = () => {
     if(!email||!email.includes("@")){setErr("Please enter a valid email");return;}
-    // In production this hits your backend — for now stores locally + opens mailto
+    // In production this hits your backend - for now stores locally + opens mailto
     localStorage.setItem(WAITLIST_KEY, email);
     const sub  = "FundOff Early Access Request";
-    const body = `Email: ${email}\nJoined waitlist at: ${new Date().toISOString()}\nPage: fundoff.org`;
-    window.open(`mailto:hello@fundoff.org?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`,"_blank");
+    const body = "Email: "+email+"\nJoined waitlist at: "+new Date().toISOString()+"\nPage: fundoff.org";
+    window.open("mailto:hello@fundoff.org?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body),"_blank");
     setDone(true);
   };
 
@@ -136,7 +137,7 @@ function WaitlistBanner() {
         fontWeight:700,marginBottom:14,letterSpacing:0.5,
       }}>
         <span style={{width:6,height:6,borderRadius:"50%",background:"#ff4444",display:"inline-block",animation:"pulse 1.5s ease infinite"}}/>
-        LIVE — STREAMLINING NOW
+        LIVE - STREAMLINING NOW
       </div>
       <h2 style={{fontSize:20,fontWeight:800,marginBottom:8,color:"#fff"}}>
         We're live and getting better every day
@@ -173,18 +174,18 @@ function WaitlistBanner() {
   );
 }
 
-// ─── Verify Badge ─────────────────────────────────────────────────────────────
+// --- Verify Badge 
 function VerifyBadge({level,socialHandle,onClick}) {
   const v=VERIFY[level]||VERIFY.none;
   if(!v.label) return null;
   return (
-    <span onClick={onClick} title={v.desc} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,cursor:onClick?"pointer":"default",border:`1px solid ${v.color}`,color:v.color,background:`${v.color}15`,textTransform:"uppercase",letterSpacing:0.8}}>
-      {v.badge} {v.label}{socialHandle&&` · @${socialHandle}`}
+    <span onClick={onClick} title={v.desc} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,cursor:onClick?"pointer":"default",border:"1px solid "+v.color,color:v.color,background:v.color+"15",textTransform:"uppercase",letterSpacing:0.8}}>
+      {v.badge} {v.label}{socialHandle&&" . @"+socialHandle}
     </span>
   );
 }
 
-// ─── Verify Info Modal ────────────────────────────────────────────────────────
+// --- Verify Info Modal 
 function VerifyInfoModal({campaign,onClose}) {
   const v=VERIFY[campaign.verifyLevel]||VERIFY.none;
   return (
@@ -192,10 +193,10 @@ function VerifyInfoModal({campaign,onClose}) {
       <div style={{...cardStyle,width:"100%",maxWidth:400,overflow:"hidden"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <h3 style={{margin:0,fontSize:16,fontWeight:800}}>Campaign Verification</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
         </div>
         <div style={{padding:22}}>
-          <div style={{background:`${(v.color||"#555")}10`,border:`1px solid ${(v.color||"#555")}30`,borderRadius:12,padding:16,marginBottom:16,textAlign:"center"}}>
+          <div style={{background:(v.color||"#555")+"10",border:"1px solid "+(v.color||"#555")+"30",borderRadius:12,padding:16,marginBottom:16,textAlign:"center"}}>
             <div style={{fontSize:32,marginBottom:8}}>{v.badge||"?"}</div>
             <div style={{fontWeight:800,color:v.color||"#555",fontSize:14,marginBottom:4}}>{v.label||"Unverified"}</div>
             <div style={{color:"#555",fontSize:12,lineHeight:1.6}}>{v.desc||"This campaign has not been verified."}</div>
@@ -206,11 +207,11 @@ function VerifyInfoModal({campaign,onClose}) {
                 <div style={{fontWeight:700,color:"#fff",fontSize:13}}>@{campaign.socialHandle}</div>
                 <div style={{color:"#444",fontSize:11,marginTop:2}}>on {campaign.socialPlatform}</div>
               </div>
-              {campaign.socialProofUrl&&<a href={campaign.socialProofUrl} target="_blank" rel="noopener noreferrer" style={{marginLeft:"auto",fontSize:11,color:"#ff4444",fontWeight:600,textDecoration:"none"}}>View proof →</a>}
+              {campaign.socialProofUrl&&<a href={campaign.socialProofUrl} target="_blank" rel="noopener noreferrer" style={{marginLeft:"auto",fontSize:11,color:"#ff4444",fontWeight:600,textDecoration:"none"}}>View proof -></a>}
             </div>
           )}
           <div style={{background:"#0a0a12",borderRadius:10,padding:12}}>
-            <div style={{fontSize:11,color:"#444",lineHeight:1.7}}>⚠️ Verification confirms identity only — not campaign claims. Always do your own research before donating.</div>
+            <div style={{fontSize:11,color:"#444",lineHeight:1.7}}>⚠️ Verification confirms identity only - not campaign claims. Always do your own research before donating.</div>
           </div>
         </div>
       </div>
@@ -218,7 +219,7 @@ function VerifyInfoModal({campaign,onClose}) {
   );
 }
 
-// ─── Verify Request Modal ─────────────────────────────────────────────────────
+// --- Verify Request Modal 
 function VerifyRequestModal({onClose}) {
   const [platform,setPlatform]=useState("twitter");
   const [handle,setHandle]=useState("");
@@ -227,9 +228,9 @@ function VerifyRequestModal({onClose}) {
   const [sent,setSent]=useState(false);
   const submit=()=>{
     if(!handle||!proofUrl||!campaignId) return;
-    const sub=`FundOff Verification Request — @${handle} on ${platform}`;
-    const body=`Campaign ID: ${campaignId}\nPlatform: ${platform}\nHandle: @${handle}\nProof URL: ${proofUrl}\nSent: ${new Date().toISOString()}`;
-    window.location.href=`mailto:hello@fundoff.org?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+    const sub="FundOff Verification Request - @"+handle+" on "+platform;
+    const body="Campaign ID: "+campaignId+"\nPlatform: "+platform+"\nHandle: @"+handle+"\nProof URL: "+proofUrl+"\nSent: "+new Date().toISOString();
+    window.location.href="mailto:hello@fundoff.org?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body);
     setSent(true);
   };
   return (
@@ -237,12 +238,12 @@ function VerifyRequestModal({onClose}) {
       <div style={{...cardStyle,width:"100%",maxWidth:440,overflow:"hidden",maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><h3 style={{margin:0,fontSize:16,fontWeight:800}}>Get Verified</h3><div style={{fontSize:11,color:"#555",marginTop:3}}>Build donor trust with a verified badge</div></div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
         </div>
         {!sent?(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:14}}>
-            {[{level:"social",icon:"✓",title:"Social Verified — Free",desc:"Link your Twitter, YouTube, or Instagram"},{level:"id",icon:"🛡",title:"ID Verified — $4.99",desc:"Government ID check via Stripe Identity"},{level:"manual",icon:"⭐",title:"FundOff Verified — High-profile only",desc:"Manual review for notable campaigns"}].map(t=>(
-              <div key={t.level} style={{background:"#0d0d15",border:`1px solid ${VERIFY[t.level].color}22`,borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
+            {[{level:"social",icon:"✓",title:"Social Verified - Free",desc:"Link your Twitter, YouTube, or Instagram"},{level:"id",icon:"🛡",title:"ID Verified - $4.99",desc:"Government ID check via Stripe Identity"},{level:"manual",icon:"⭐",title:"FundOff Verified - High-profile only",desc:"Manual review for notable campaigns"}].map(t=>(
+              <div key={t.level} style={{background:"#0d0d15",border:"1px solid "+VERIFY[t.level].color+"22",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"flex-start",gap:10}}>
                 <span style={{fontSize:18,flexShrink:0}}>{t.icon}</span>
                 <div><div style={{fontSize:12,fontWeight:700,color:VERIFY[t.level].color}}>{t.title}</div><div style={{fontSize:11,color:"#555",marginTop:2}}>{t.desc}</div></div>
               </div>
@@ -284,19 +285,19 @@ function VerifyRequestModal({onClose}) {
   );
 }
 
-// ─── TierBadge ────────────────────────────────────────────────────────────────
+// --- TierBadge 
 function TierBadge({tier}) {
   const t=TIERS[tier]||TIERS.Free;
   return <span style={{
     fontSize:9,fontWeight:600,padding:"3px 8px",
-    borderRadius:5,border:`1px solid ${t.color}22`,
-    color:t.color,background:`${t.color}0d`,
+    borderRadius:5,border:"1px solid "+t.color+"22",
+    color:t.color,background:t.color+"0d",
     textTransform:"uppercase",letterSpacing:"0.08em",
     fontFamily:"'Inter',sans-serif",
   }}>{t.label}</span>;
 }
 
-// ─── Terms Banner ─────────────────────────────────────────────────────────────
+// --- Terms Banner 
 function TermsBanner({onAccept,onViewTos}) {
   return (
     <div className="slide-up" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:5000,background:"#111118",borderTop:"1px solid #1e1e2e",padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12,boxShadow:"0 -8px 32px rgba(0,0,0,0.6)"}}>
@@ -311,7 +312,7 @@ function TermsBanner({onAccept,onViewTos}) {
   );
 }
 
-// ─── ToS Modal ────────────────────────────────────────────────────────────────
+// --- ToS Modal 
 function TosModal({onClose,onAccept,showAcceptBtn}) {
   const sections=[
     {t:"1. Acceptance",b:"By using FundOff you agree to these Terms. If you do not agree, do not use this platform."},
@@ -319,27 +320,27 @@ function TosModal({onClose,onAccept,showAcceptBtn}) {
     {t:"3. Prohibited Campaigns",b:"Prohibited:\n• Campaigns funding violence, terrorism, or harm\n• Child exploitation in any form\n• Illegal weapons\n• Fraud or deception\n• Hate speech or harassment\n• Any violation of applicable law"},
     {t:"4. Creator Responsibility",b:"Campaign creators take full legal responsibility for their campaign. FundOff is not liable for creator actions or fund usage."},
     {t:"5. No Pre-Approval",b:"Campaigns go live immediately. No approval required. FundOff reserves the right to remove campaigns from the frontend that violate these Terms."},
-    {t:"6. Verification",b:"Verification confirms identity only — not campaign legitimacy. Always do your own research before donating."},
+    {t:"6. Verification",b:"Verification confirms identity only - not campaign legitimacy. Always do your own research before donating."},
     {t:"7. Irreversible Transactions",b:"All donations are on-chain and cannot be reversed, refunded, or redirected by FundOff."},
     {t:"8. Fees",b:"2% Free, 1% Pro, 0.5% Elite. Deducted automatically at the contract level."},
     {t:"9. Limitation of Liability",b:"FundOff and its operators are not liable for any damages. Use at your own risk."},
     {t:"10. Governing Law",b:"Wyoming, United States."},
-    {t:"11. Contact",b:`Violations: ${REPORT_EMAIL}\nOther: hello@fundoff.org`},
+    {t:"11. Contact",b:"Violations: "+REPORT_EMAIL+"\nOther: hello@fundoff.org"},
   ];
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:640,maxHeight:"88vh",overflow:"hidden",display:"flex",flexDirection:"column"}} className="fade-in">
         <div style={{padding:"18px 24px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Terms of Service</h2>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
         </div>
         <div style={{padding:24,overflowY:"auto",fontSize:13,color:"#777",lineHeight:1.8}}>
-          <p style={{color:"#aaa",marginBottom:20,fontSize:11}}>Last updated: June 2026 · FundOff</p>
+          <p style={{color:"#aaa",marginBottom:20,fontSize:11}}>Last updated: June 2026 . FundOff</p>
           {sections.map(s=>(<div key={s.t} style={{marginBottom:22}}><h3 style={{color:"#fff",fontSize:14,fontWeight:700,marginBottom:7}}>{s.t}</h3><p style={{whiteSpace:"pre-line"}}>{s.b}</p></div>))}
         </div>
         <div style={{padding:"16px 24px",borderTop:"1px solid #111",flexShrink:0}}>
           {showAcceptBtn
-            ?<button onClick={()=>{onAccept&&onAccept();onClose();}} style={primaryBtn({padding:"12px"})}>I Agree — Close</button>
+            ?<button onClick={()=>{onAccept&&onAccept();onClose();}} style={primaryBtn({padding:"12px"})}>I Agree - Close</button>
             :<button onClick={onClose} style={primaryBtn({padding:"12px"})}>Close</button>}
         </div>
       </div>
@@ -347,7 +348,7 @@ function TosModal({onClose,onAccept,showAcceptBtn}) {
   );
 }
 
-// ─── Report Modal ─────────────────────────────────────────────────────────────
+// --- Report Modal 
 function ReportModal({campaign,onClose}) {
   const [reason,setReason]=useState("");
   const [details,setDetails]=useState("");
@@ -355,9 +356,9 @@ function ReportModal({campaign,onClose}) {
   const reasons=["Fraud or scam","Violent or harmful content","Terrorism or extremism","Child exploitation","Harassment or hate speech","Misleading information","Other ToS violation"];
   const submit=()=>{
     if(!reason) return;
-    const sub=`FundOff Report — #${campaign.id}: ${campaign.title}`;
-    const body=`Campaign: ${campaign.id}\nTitle: ${campaign.title}\nReason: ${reason}\nDetails: ${details}\nDate: ${new Date().toISOString()}`;
-    window.location.href=`mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+    const sub="FundOff Report - #"+campaign.id+": "+campaign.title;
+    const body="Campaign: "+campaign.id+"\nTitle: "+campaign.title+"\nReason: "+reason+"\nDetails: "+details+"\nDate: "+new Date().toISOString();
+    window.location.href="mailto:"+REPORT_EMAIL+"?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body);
     setSent(true);
   };
   return (
@@ -365,7 +366,7 @@ function ReportModal({campaign,onClose}) {
       <div style={{...cardStyle,width:"100%",maxWidth:420,overflow:"hidden"}} className="fade-in">
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontSize:10,color:"#ff4444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Report Campaign</div><div style={{fontSize:14,fontWeight:700,color:"#fff",maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{campaign.title}</div></div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
         </div>
         {!sent?(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:10}}>
@@ -387,7 +388,7 @@ function ReportModal({campaign,onClose}) {
   );
 }
 
-// ─── Create Campaign Modal — STREAMLINED ──────────────────────────────────────
+// --- Create Campaign Modal - STREAMLINED 
 function CreateModal({onClose,onCreate,onShowTos}) {
   const [step,setStep]=useState(1);  // 1=basics, 2=payout, 3=tier, 4=done
   const [title,setTitle]=useState("");
@@ -417,7 +418,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
 
   const create=()=>{
     if(!agreed){setErr("Please agree to the Terms of Service");return;}
-    const recipient = payoutMethod==="wallet" ? wallet : `${payoutMethod}:${recipientEmail||bankAccount}`;
+    const recipient = payoutMethod==="wallet" ? wallet : payoutMethod+":"+recipientEmail||bankAccount;
     onCreate({
       id:Date.now(),title,description:desc,
       goalUSDC:parseFloat(goal)*1e6,totalRaisedUSDC:0,
@@ -442,7 +443,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
         <div style={{padding:"18px 22px",borderBottom:"1px solid #111",position:"sticky",top:0,background:"#111118",zIndex:1}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:step<4?12:0}}>
             <h2 style={{margin:0,fontSize:18,fontWeight:800}}>Start a Campaign</h2>
-            <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>×</button>
+            <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
           </div>
           {step<4&&(
             <div style={{display:"flex",gap:4}}>
@@ -456,7 +457,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
           )}
         </div>
 
-        {/* Step 1 — Details */}
+        {/* Step 1 - Details */}
         {step===1&&(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:16}}>
             <div>
@@ -476,11 +477,11 @@ function CreateModal({onClose,onCreate,onShowTos}) {
               </div>
             </div>
             {err&&<div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
-            <button onClick={next1} style={primaryBtn()}>Next: Payout Method →</button>
+            <button onClick={next1} style={primaryBtn()}>Next: Payout Method -></button>
           </div>
         )}
 
-        {/* Step 2 — Payout Method (THE STREAMLINED PART) */}
+        {/* Step 2 - Payout Method (THE STREAMLINED PART) */}
         {step===2&&(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:16}}>
             <div>
@@ -498,7 +499,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                   <div>
                     <div style={{fontWeight:700,color:payoutMethod==="bank"?"#fff":"#888",fontSize:14,marginBottom:3}}>Bank Account</div>
                     <div style={{fontSize:12,color:"#555",lineHeight:1.5}}>Donations convert to USD and deposit directly to your bank. No crypto needed.</div>
-                    {payoutMethod==="bank"&&<div style={{fontSize:10,color:"#ff4444",marginTop:4,fontWeight:600}}>⚡ Recommended — easiest for recipients</div>}
+                    {payoutMethod==="bank"&&<div style={{fontSize:10,color:"#ff4444",marginTop:4,fontWeight:600}}>⚡ Recommended - easiest for recipients</div>}
                   </div>
                 </button>
 
@@ -541,7 +542,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                 <input value={bankName} onChange={e=>setBankName(e.target.value)} placeholder="Account holder name" style={inp}/>
                 <input value={bankRouting} onChange={e=>setBankRouting(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="Routing number (9 digits)" style={inp}/>
                 <input value={bankAccount} onChange={e=>setBankAccount(e.target.value.replace(/\D/g,""))} placeholder="Account number" style={inp}/>
-                <div style={{fontSize:10,color:"#2a2a3a",lineHeight:1.6}}>🔒 Bank details are encrypted. Stripe handles all payouts securely — we never store your account number.</div>
+                <div style={{fontSize:10,color:"#2a2a3a",lineHeight:1.6}}>🔒 Bank details are encrypted. Stripe handles all payouts securely - we never store your account number.</div>
               </div>
             )}
 
@@ -564,12 +565,12 @@ function CreateModal({onClose,onCreate,onShowTos}) {
             )}
 
             {err&&<div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
-            <button onClick={next2} style={primaryBtn()}>Next: Choose Tier →</button>
-            <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"8px"}}>← Back</button>
+            <button onClick={next2} style={primaryBtn()}>Next: Choose Tier -></button>
+            <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"8px"}}><- Back</button>
           </div>
         )}
 
-        {/* Step 3 — Tier */}
+        {/* Step 3 - Tier */}
         {step===3&&(
           <div style={{padding:22,display:"flex",flexDirection:"column",gap:16}}>
             <div>
@@ -578,7 +579,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                 {Object.entries(TIERS).map(([key,t])=>(
                   <button key={key} onClick={()=>setTier(key)} style={{
                     padding:14,borderRadius:12,cursor:"pointer",textAlign:"left",
-                    border:tier===key?`2px solid ${t.color}`:"1px solid #1e1e2e",
+                    border:tier===key?"2px solid "+t.color:"1px solid #1e1e2e",
                     background:tier===key?t.bg:"#0d0d15",
                     display:"flex",alignItems:"center",gap:12,
                   }}>
@@ -587,9 +588,9 @@ function CreateModal({onClose,onCreate,onShowTos}) {
                         <span style={{fontWeight:700,color:tier===key?t.color:"#777",fontSize:14}}>{t.label}</span>
                         <span style={{fontSize:13,color:tier===key?t.color:"#444",fontWeight:600}}>{t.price}</span>
                       </div>
-                      <div style={{fontSize:11,color:"#444"}}>{t.fee} donation fee · {t.perks[0]}</div>
+                      <div style={{fontSize:11,color:"#444"}}>{t.fee} donation fee . {t.perks[0]}</div>
                     </div>
-                    <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${tier===key?t.color:"#222"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <div style={{width:20,height:20,borderRadius:"50%",border:"2px solid "+tier===key?t.color:"#222",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                       {tier===key&&<div style={{width:10,height:10,borderRadius:"50%",background:t.color}}/>}
                     </div>
                   </button>
@@ -598,7 +599,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
             </div>
 
             <div style={{background:"rgba(68,136,255,0.06)",border:"1px solid rgba(68,136,255,0.15)",borderRadius:10,padding:"12px 14px"}}>
-              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:4}}>✓ Get verified after launch — free</div>
+              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:4}}>✓ Get verified after launch - free</div>
               <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>Post on your social: "My official FundOff campaign" then email hello@fundoff.org for a Social Verified badge.</div>
             </div>
 
@@ -610,11 +611,11 @@ function CreateModal({onClose,onCreate,onShowTos}) {
             </label>
             {err&&<div style={{color:"#ff4444",fontSize:12}}>{err}</div>}
             <button onClick={create} style={primaryBtn()}>🚀 Launch Campaign</button>
-            <button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"8px"}}>← Back</button>
+            <button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"8px"}}><- Back</button>
           </div>
         )}
 
-        {/* Step 4 — Done */}
+        {/* Step 4 - Done */}
         {step===4&&(
           <div style={{padding:44,textAlign:"center"}} className="fade-in">
             <div style={{fontSize:52,marginBottom:16}}>⚡</div>
@@ -626,7 +627,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
               {payoutMethod==="wallet"&&" USDC will arrive in your wallet instantly after each donation."}
             </p>
             <div style={{background:"rgba(68,136,255,0.06)",border:"1px solid rgba(68,136,255,0.15)",borderRadius:10,padding:14,marginBottom:20,textAlign:"left"}}>
-              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:6}}>✓ Get verified — build donor trust</div>
+              <div style={{fontSize:12,color:"#4488ff",fontWeight:700,marginBottom:6}}>✓ Get verified - build donor trust</div>
               <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>Post on social: "My official FundOff campaign is live at fundoff.org" then email hello@fundoff.org with the link for a free Social Verified badge.</div>
             </div>
             <button onClick={onClose} style={primaryBtn({padding:"13px 28px",width:"auto"})}>Done</button>
@@ -637,7 +638,7 @@ function CreateModal({onClose,onCreate,onShowTos}) {
   );
 }
 
-// ─── Donate Modal ─────────────────────────────────────────────────────────────
+// --- Donate Modal 
 function DonateModal({campaign,onClose,onShowTos}) {
   const [step,setStep]=useState(1);
   const [amount,setAmount]=useState("");
@@ -682,12 +683,12 @@ function DonateModal({campaign,onClose,onShowTos}) {
     };
   },[step,method]);
 
-  const feeNum=parseFloat(TIERS[campaign.tier]?.fee||"2%")/100;
+  const feeNum=parseFloat((TIERS[campaign.tier] ? TIERS[campaign.tier].fee : "2%"))/100;
   const amtNum=parseFloat(amount)||0;
   const feeAmt=+(amtNum*feeNum).toFixed(2);
   const recv=+(amtNum-feeAmt).toFixed(2);
   const fmtCard=v=>v.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
-  const fmtExp=v=>{const c=v.replace(/\D/g,"").slice(0,4);return c.length>=2?`${c.slice(0,2)}/${c.slice(2)}`:c;};
+  const fmtExp=v=>{const c=v.replace(/\D/g,"").slice(0,4);return c.length>=2?c.slice(0,2)+"/"+c.slice(2):c;};
 
   const next=()=>{
     if(!amount||parseFloat(amount)<20){setErr("Minimum $20");return;}
@@ -699,20 +700,20 @@ function DonateModal({campaign,onClose,onShowTos}) {
     setErr("");setProcessing(true);
     try {
       if(method==="crypto"){
-        // Card or wallet → USDC → lands directly in campaign escrow on Base.
+        // Card or wallet -> USDC -> lands directly in campaign escrow on Base.
         // No Stripe involved in this path at all.
         const res=await fetch('/api/create-transak-widget-url',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
-            walletAddress:CONTRACT, // funds go to the FundOff escrow contract, tagged by campaignId
+            walletAddress:CONTRACT_V2, // V2 escrow contract - funds sit here until recipient withdraws, genuinely uncensorable
             fiatAmount:amtNum,
             campaignId:campaign.id,
           }),
         });
         const data=await res.json();
         if(!res.ok) throw new Error(data.error||'Could not start crypto payment');
-        // Open Transak in a new tab — donor completes payment there,
+        // Open Transak in a new tab - donor completes payment there,
         // USDC arrives on-chain once their payment settles.
         window.open(data.widgetUrl,'_blank','noopener');
         setProcessing(false);
@@ -761,7 +762,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
           </div>
         }
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22,marginLeft:12}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22,marginLeft:12}}>x</button>
         </div>
         {step===1&&(
           <div style={{padding:22}}>
@@ -773,7 +774,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",color:"#444",fontSize:17,fontWeight:600}}>$</span>
               <input type="number" placeholder="Other amount" value={amount} onChange={e=>setAmount(e.target.value)} min="20" style={{...inp,paddingLeft:28}}/>
             </div>
-            <div style={{fontSize:11,color:"#2a2a3a",marginBottom:14}}>Minimum $20 · No maximum · {TIERS[campaign.tier]?.fee||"2%"} fee</div>
+            <div style={{fontSize:11,color:"#2a2a3a",marginBottom:14}}>Minimum $20 . No maximum . {(TIERS[campaign.tier] ? TIERS[campaign.tier].fee : "2%")} fee</div>
             {amtNum>=20&&(<div style={{background:"#0a0a12",border:"1px solid #111",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{color:"#444"}}>Platform fee</span><span style={{color:"#444"}}>${feeAmt}</span></div><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#aaa",fontWeight:600}}>Recipient receives</span><span style={{color:"#ff4444",fontWeight:700}}>${recv}</span></div></div>)}
             <textarea placeholder="Leave a message (optional)" value={message} onChange={e=>setMessage(e.target.value)} rows={2} style={{...inp,resize:"none",marginBottom:14}}/>
             <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:14}}>
@@ -781,7 +782,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <span style={{fontSize:12,color:"#555",lineHeight:1.5}}>I agree to FundOff's <span style={{color:"#ff4444",cursor:"pointer",textDecoration:"underline"}} onClick={onShowTos}>Terms of Service</span>. Donations are on-chain and cannot be reversed.</span>
             </label>
             {err&&<div style={{color:"#ff4444",fontSize:12,marginBottom:10}}>{err}</div>}
-            <button onClick={next} style={primaryBtn()}>Continue →</button>
+            <button onClick={next} style={primaryBtn()}>Continue -></button>
             <div style={{textAlign:"center",fontSize:10,color:"#1e1e2e",marginTop:10}}>🔒 Funds go directly to recipient</div>
           </div>
         )}
@@ -796,7 +797,7 @@ function DonateModal({campaign,onClose,onShowTos}) {
             </div>
             {method==="crypto"&&(
               <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#22cc88",background:"rgba(34,204,136,0.06)",border:"1px solid rgba(34,204,136,0.15)",borderRadius:8,padding:"7px 10px",marginBottom:14}}>
-                🔒 Fully on-chain. Pay with card or wallet — funds land directly in escrow. No platform, court, or company can touch it.
+                🔒 Fully on-chain. Pay with card or wallet - funds land directly in escrow. No platform, court, or company can touch it.
               </div>
             )}
             {(method==="card"||method==="apple")&&(
@@ -824,9 +825,9 @@ function DonateModal({campaign,onClose,onShowTos}) {
             {method==="apple"&&(<div style={{background:"#000",borderRadius:12,padding:28,textAlign:"center",border:"1px solid #111"}}><div style={{fontSize:40,marginBottom:8}}>🍎</div><div style={{color:"#fff",fontWeight:700}}>Apple Pay</div><div style={{color:"#444",fontSize:12,marginTop:4}}>Use Face ID or Touch ID</div></div>)}
             {err&&<div style={{color:"#ff4444",fontSize:12,marginTop:10}}>{err}</div>}
             <button onClick={pay} disabled={processing} style={primaryBtn({marginTop:16,background:processing?"#1a1a1a":"linear-gradient(90deg,#ff4444,#ff8800)",cursor:processing?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:processing?0.7:1})}>
-              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>{method==="crypto"?"Opening secure payment...":"Processing..."}</>:method==="crypto"?`Continue with $${amtNum.toFixed(2)} →`:`Donate $${amtNum.toFixed(2)}`}
+              {processing?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,0.2)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>{method==="crypto"?"Opening secure payment...":"Processing..."}</>:method==="crypto"?"Continue with $"+amtNum.toFixed(2)+" ->":"Donate $"+amtNum.toFixed(2)}
             </button>
-            <button onClick={()=>setStep(1)} style={{width:"100%",padding:"10px",marginTop:6,background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer"}}>← Back</button>
+            <button onClick={()=>setStep(1)} style={{width:"100%",padding:"10px",marginTop:6,background:"none",border:"none",color:"#333",fontSize:12,cursor:"pointer"}}><- Back</button>
           </div>
         )}
         {step===3&&(
@@ -836,13 +837,13 @@ function DonateModal({campaign,onClose,onShowTos}) {
               <>
                 <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Almost there!</h2>
                 <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}>We opened a secure payment window in a new tab. Once you complete it there, <strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> in USDC lands directly in escrow on Base. Instantly. Permanently. No platform can touch it.</p>
-                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>→ Escrow contract · {CONTRACT.slice(0,16)}...</div>
+                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>-> Escrow contract . {CONTRACT_V2.slice(0,16)}...</div>
               </>
             ):(
               <>
                 <h2 style={{color:"#fff",margin:"0 0 10px",fontSize:20,fontWeight:800}}>Donation sent!</h2>
                 <p style={{color:"#666",fontSize:13,lineHeight:1.7,margin:"0 0 20px"}}><strong style={{color:"#ff4444"}}>${amtNum.toFixed(2)}</strong> is on its way to the recipient's bank account via Stripe.</p>
-                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>✓ Payment confirmed · Campaign #{campaign.id}</div>
+                <div style={{background:"#0a0a12",borderRadius:10,padding:"12px 16px",fontSize:11,color:"#333",fontFamily:"monospace",marginBottom:12}}>✓ Payment confirmed . Campaign #{campaign.id}</div>
               </>
             )}
             <div style={{fontSize:11,color:"#2a2a3a",marginBottom:20,lineHeight:1.6}}>Donations through FundOff are generally not tax deductible unless the campaign is for a registered nonprofit. Consult a tax professional for your situation.</div>
@@ -854,25 +855,25 @@ function DonateModal({campaign,onClose,onShowTos}) {
   );
 }
 
-// ─── Pricing Modal ────────────────────────────────────────────────────────────
+// --- Pricing Modal 
 function PricingModal({onClose}) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(8px)"}} >
       <div style={{...cardStyle,width:"100%",maxWidth:600,padding:28,maxHeight:"92vh",overflowY:"auto"}} className="fade-in">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
           <div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>Campaign Tiers</h2><p style={{color:"#444",fontSize:12,marginTop:4}}>Lower fees. More visibility. Same unstoppable protection.</p></div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:24}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:24}}>x</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-          {Object.entries(TIERS).map(([key,t])=>(<div key={key} style={{border:`1px solid ${t.border}`,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}><div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div><div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div><div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div><div style={{flex:1,display:"flex",flexDirection:"column",gap:7}}>{t.perks.map(p=>(<div key={p} style={{fontSize:12,color:"#777",display:"flex",gap:6}}><span style={{color:t.color,flexShrink:0}}>✓</span>{p}</div>))}</div></div>))}
+          {Object.entries(TIERS).map(([key,t])=>(<div key={key} style={{border:"1px solid "+t.border,borderRadius:14,padding:18,background:t.bg,display:"flex",flexDirection:"column"}}><div style={{fontSize:11,fontWeight:700,color:t.color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.label}</div><div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>{t.price}</div><div style={{fontSize:12,color:"#444",marginBottom:16}}>{t.fee} donation fee</div><div style={{flex:1,display:"flex",flexDirection:"column",gap:7}}>{t.perks.map(p=>(<div key={p} style={{fontSize:12,color:"#777",display:"flex",gap:6}}><span style={{color:t.color,flexShrink:0}}>✓</span>{p}</div>))}</div></div>))}
         </div>
-        <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.08)",borderRadius:10,fontSize:12,color:"#444",textAlign:"center"}}>All tiers: blockchain protected · uncensorable · Social/ID/FundOff verification available</div>
+        <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,68,68,0.04)",border:"1px solid rgba(255,68,68,0.08)",borderRadius:10,fontSize:12,color:"#444",textAlign:"center"}}>All tiers: blockchain protected . uncensorable . Social/ID/FundOff verification available</div>
       </div>
     </div>
   );
 }
 
-// ─── Campaign Card ────────────────────────────────────────────────────────────
+// --- Campaign Card 
 function CampaignCard({c,onDonate,onReport}) {
   const [hov,setHov]=useState(false);
   const [menu,setMenu]=useState(false);
@@ -888,7 +889,7 @@ function CampaignCard({c,onDonate,onReport}) {
         onMouseLeave={()=>{setHov(false);setMenu(false);}}
         style={{
           background:"#0d0d14",
-          border:`1px solid ${hov?"#ff4444":"#16161f"}`,
+          border:"1px solid "+hov?"#ff4444":"#16161f",
           borderRadius:14,
           overflow:"hidden",
           cursor:"pointer",
@@ -918,7 +919,7 @@ function CampaignCard({c,onDonate,onReport}) {
         <div onClick={()=>onDonate(c)}>
           {/* Progress bar at very top */}
           <div style={{height:2,background:"#0a0a12"}}>
-            <div style={{width:`${p}%`,height:"100%",background:"#ff4444",transition:"width 1s ease"}}/>
+            <div style={{width:p+"%",height:"100%",background:"#ff4444",transition:"width 1s ease"}}/>
           </div>
 
           <div style={{padding:"20px 20px 18px"}}>
@@ -964,12 +965,12 @@ function CampaignCard({c,onDonate,onReport}) {
 
             {/* Progress bar */}
             <div style={{background:"#111",borderRadius:99,height:3,overflow:"hidden",marginBottom:16}}>
-              <div style={{width:`${p}%`,height:"100%",background:"#ff4444",borderRadius:99}}/>
+              <div style={{width:p+"%",height:"100%",background:"#ff4444",borderRadius:99}}/>
             </div>
 
             {/* Footer */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span style={{fontSize:10,color:"#2a2a3a",letterSpacing:"0.04em"}}>ON-CHAIN · {TIERS[c.tier]?.fee||"2%"} FEE</span>
+              <span style={{fontSize:10,color:"#2a2a3a",letterSpacing:"0.04em"}}>ON-CHAIN . {(TIERS[c.tier] ? TIERS[c.tier].fee : "2%")} FEE</span>
               <span style={{
                 fontSize:12,color:"#ff4444",fontWeight:600,
                 padding:"5px 12px",borderRadius:6,
@@ -985,7 +986,7 @@ function CampaignCard({c,onDonate,onReport}) {
   );
 }
 
-// ─── Empty State ──────────────────────────────────────────────────────────────
+// --- Empty State 
 function EmptyState({onStart}) {
   return (
     <div style={{textAlign:"center",padding:"80px 24px",maxWidth:440,margin:"0 auto"}}>
@@ -1013,7 +1014,7 @@ function EmptyState({onStart}) {
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+// --- App 
 function App() {
   const [campaigns,setCampaigns]=useState([]);
   const [donating,setDonating]=useState(null);
@@ -1066,7 +1067,7 @@ function App() {
           <span style={{fontSize:11,fontWeight:600,color:"#ff4444",letterSpacing:"0.12em",textTransform:"uppercase"}}>Uncensorable donations</span>
         </div>
 
-        {/* Headline — Space Grotesk, big, confident */}
+        {/* Headline - Space Grotesk, big, confident */}
         <h1 style={{
           fontFamily:"'Space Grotesk', sans-serif",
           fontSize:"clamp(38px,7vw,72px)",
@@ -1136,7 +1137,7 @@ function App() {
           gap:32,flexWrap:"wrap",
         }}>
           {[
-            {label:"FundOff LLC · Wyoming"},
+            {label:"FundOff LLC . Wyoming"},
             {label:"Contract verified on Base"},
             {label:"Open source"},
             {label:"Stripe payments"},
@@ -1206,11 +1207,11 @@ function App() {
           ))}
           <span onClick={()=>{setTosFromBanner(false);setShowTos(true);}} style={{fontSize:12,color:"#2a2a3a",cursor:"pointer",fontWeight:500}}>Terms</span>
           <span onClick={()=>setShowVerifyReq(true)} style={{fontSize:12,color:"#2a2a3a",cursor:"pointer",fontWeight:500}}>Get Verified</span>
-          <a href={`mailto:${REPORT_EMAIL}`} style={{fontSize:12,color:"#2a2a3a",textDecoration:"none",fontWeight:500}}>Report</a>
+          <a href={"mailto:"+REPORT_EMAIL} style={{fontSize:12,color:"#2a2a3a",textDecoration:"none",fontWeight:500}}>Report</a>
           <a href="mailto:hello@fundoff.org" style={{fontSize:12,color:"#2a2a3a",textDecoration:"none",fontWeight:500}}>Contact</a>
         </div>
         <div style={{fontSize:10,color:"#111",fontFamily:"monospace",letterSpacing:"0.02em"}}>
-          {CONTRACT} · FundOff LLC · Wyoming · EIN 42-3141020
+          V2 escrow: {CONTRACT_V2} . V1 legacy: {CONTRACT} . FundOff LLC . Wyoming . EIN 42-3141020
         </div>
       </div>
 
