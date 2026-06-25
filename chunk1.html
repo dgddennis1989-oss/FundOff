@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Chunk Test 1</title>
+  <style>body{background:#09090f;color:white;padding:40px;font-family:sans-serif}.ok{color:#22cc88}.fail{color:#ff4444}.box{background:#111;padding:20px;border-radius:12px;margin-bottom:16px;border:1px solid #333}</style>
+</head>
+<body>
+  <h2>Chunk 1/8 — Lines 1-147 of 1179</h2>
+  <div class="box" id="r">Testing lines 1-147...</div>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script type="text/babel">
+
+const { useState, useEffect } = React;
+
+const CONTRACT     = "0x3a6a50a4c7145896BeBe99b731Ccf6Cb0739e752"; // V1 - direct-send, legacy campaigns still live here
+const CONTRACT_V2  = "0x4BB819722a8374b61B84B450460FF4205112c873"; // V2 - escrow model, withdraw-anytime, dormancy sweep to charity. All new crypto donations go here.
+
+// --- Security: Input Sanitization 
+const sanitize = str => {
+  if(!str) return "";
+  return String(str)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#x27;")
+    .replace(/[/]/g,"&#x2F;")
+    .slice(0, 5000); // max length cap
+};
+const STRIPE_PK    = "pk_test_51ThbNgIgV5bYQ9TsbG0cP9HzlT57fns5IRBFbnYuHXHlyqEd9Busrjm3S1B4Qtw2cqGhhstT50AhLF1vAy0svO8E00bdoVNMyz";
+// Stripe loads synchronously from CDN before React starts
+// Access it directly from window when needed
+const getStripe = () => {
+  if(typeof window !== "undefined" && window.Stripe) {
+    return window.Stripe(STRIPE_PK);
+  }
+  return null;
+};
+const REPORT_EMAIL = "reports@fundoff.org";
+const TERMS_KEY    = "fundoff_terms_agreed_v1";
+const WAITLIST_KEY = "fundoff_waitlist_joined";
+
+const VERIFY = {
+  none:   { label:null, badge:null, color:null, desc:null },
+  social: { label:"Social Verified", badge:"✓", color:"#4488ff", desc:"Identity confirmed via linked social media account" },
+  id:     { label:"ID Verified", badge:"🛡", color:"#22cc88", desc:"Government ID verified via Stripe Identity" },
+  manual: { label:"Verified by FundOff", badge:"⭐", color:"#ff8800", desc:"Manually verified by FundOff team" },
+};
+
+const TIERS = {
+  Free:  { label:"Free",  price:"$0/mo",     fee:"2%",   color:"#555",    border:"#2a2a3a", bg:"rgba(85,85,85,0.06)",   perks:["Instant launch","2% donation fee","On-chain protected","Visible in listings"] },
+  Pro:   { label:"Pro",   price:"$9.99/mo",  fee:"1%",   color:"#4488ff", border:"#4488ff", bg:"rgba(68,136,255,0.07)", perks:["Featured badge","1% donation fee","Priority listing","On-chain protected"] },
+  Elite: { label:"Elite", price:"$29.99/mo", fee:"0.5%", color:"#ff8800", border:"#ff8800", bg:"rgba(255,136,0,0.07)",  perks:["Homepage featured","0.5% donation fee","Top placement","Analytics","On-chain protected"] },
+};
+
+const inp        = { width:"100%", padding:"13px 14px", borderRadius:10, border:"1px solid #1a1a28", background:"#080810", color:"#fff", fontSize:14, outline:"none", boxSizing:"border-box", fontFamily:"inherit", transition:"border-color 0.15s" };
+const primaryBtn = (x={}) => ({ padding:"14px", borderRadius:11, border:"none", background:"linear-gradient(90deg,#ff4444,#ff8800)", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", width:"100%", ...x });
+const ghostBtn   = (x={}) => ({ padding:"10px 18px", borderRadius:10, border:"1px solid #1a1a28", background:"none", color:"#555", fontSize:13, cursor:"pointer", fontWeight:500, letterSpacing:"-0.01em", transition:"border-color 0.15s, color 0.15s", ...x });
+const cardStyle  = { background:"#0d0d14", border:"1px solid #16161f", borderRadius:16 };
+
+const fmt = u => { const n=u/1e6; if(n>=1e6) return "$"+(n/1e6).toFixed(1)+"M"; if(n>=1000) return "$"+(n/1000).toFixed(0)+"k"; return "$"+n.toFixed(0); };
+const pct = (r,g) => Math.min(100,Math.round((r/g)*100));
+const ago = ts => { const d=Math.floor(Date.now()/1000-ts); if(d<3600) return Math.floor(d/60)+"m ago"; if(d<86400) return Math.floor(d/3600)+"h ago"; return Math.floor(d/86400)+"d ago"; };
+
+// --- Waitlist Banner 
+function WaitlistBanner() {
+  const [email, setEmail] = useState("");
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(()=>{
+    if(localStorage.getItem(WAITLIST_KEY)) setDone(true);
+  },[]);
+
+  const join = () => {
+    if(!email||!email.includes("@")){setErr("Please enter a valid email");return;}
+    // In production this hits your backend - for now stores locally + opens mailto
+    localStorage.setItem(WAITLIST_KEY, email);
+    const sub  = "FundOff Early Access Request";
+    const body = "Email: "+email+"\nJoined waitlist at: "+new Date().toISOString()+"\nPage: fundoff.org";
+    window.open("mailto:hello@fundoff.org?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body),"_blank");
+    setDone(true);
+  };
+
+  return (
+    <div style={{
+      background:"linear-gradient(135deg,rgba(255,68,68,0.08),rgba(255,136,0,0.08))",
+      border:"1px solid rgba(255,68,68,0.2)",
+      borderRadius:16, padding:"28px 24px",
+      textAlign:"center", marginBottom:48,
+      maxWidth:560, margin:"0 auto 48px",
+    }}>
+      <div style={{
+        display:"inline-flex",alignItems:"center",gap:6,
+        background:"rgba(255,68,68,0.1)",border:"1px solid rgba(255,68,68,0.2)",
+        borderRadius:99,padding:"4px 12px",fontSize:11,color:"#ff4444",
+        fontWeight:700,marginBottom:14,letterSpacing:0.5,
+      }}>
+        <span style={{width:6,height:6,borderRadius:"50%",background:"#ff4444",display:"inline-block",animation:"pulse 1.5s ease infinite"}}/>
+        LIVE - STREAMLINING NOW
+      </div>
+      <h2 style={{fontSize:20,fontWeight:800,marginBottom:8,color:"#fff"}}>
+        We're live and getting better every day
+      </h2>
+      <p style={{color:"#555",fontSize:14,lineHeight:1.7,marginBottom:20}}>
+        Inspired by the GoFundMe situation. We're adding bank account payouts so recipients never need a crypto wallet. Drop your email to get notified when it's ready.
+      </p>
+      {!done ? (
+        <div>
+          <div style={{display:"flex",gap:8,maxWidth:400,margin:"0 auto"}}>
+            <input
+              type="email" placeholder="your@email.com"
+              value={email} onChange={e=>setEmail(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&join()}
+              style={{...inp,flex:1,fontSize:14}}
+            />
+            <button onClick={join} style={primaryBtn({width:"auto",padding:"13px 20px",fontSize:14,flexShrink:0})}>
+              Notify Me
+            </button>
+          </div>
+          {err&&<div style={{color:"#ff4444",fontSize:12,marginTop:8}}>{err}</div>}
+          <div style={{fontSize:11,color:"#2a2a3a",marginTop:8}}>No spam. One email when bank payouts go live.</div>
+        </div>
+      ) : (
+        <div style={{
+          background:"rgba(34,204,136,0.08)",border:"1px solid rgba(34,204,136,0.2)",
+          borderRadius:10,padding:"12px 16px",display:"inline-flex",alignItems:"center",gap:8,
+        }}>
+          <span style={{color:"#22cc88",fontSize:16}}>✓</span>
+          <span style={{color:"#22cc88",fontSize:13,fontWeight:600}}>You're on the list! We'll email you when ready.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Verify Badge 
+function VerifyBadge({level,socialHandle,onClick}) {
+  const v=VERIFY[level]||VERIFY.none;
+  if(!v.label) return null;
+  return (
+    <span onClick={onClick} title={v.desc} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:99,cursor:onClick?"pointer":"default",border:"1px solid "+v.color,color:v.color,background:v.color+"15",textTransform:"uppercase",letterSpacing:0.8}}>
+      {v.badge} {v.label}{socialHandle&&" . @"+socialHandle}
+    </span>
+  );
+}
+
+// --- Verify Info Modal 
+function VerifyInfoModal({campaign,onClose}) {
+  const v=VERIFY[campaign.verifyLevel]||VERIFY.none;
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16,backdropFilter:"blur(8px)"}} >
+      <div style={{...cardStyle,width:"100%",maxWidth:400,overflow:"hidden"}} className="fade-in">
+        <div style={{padding:"18px 22px",borderBottom:"1px solid #111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <h3 style={{margin:0,fontSize:16,fontWeight:800}}>Campaign Verification</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#444",fontSize:22}}>x</button>
+        </div>
+        <div style={{padding:22}}>
+// Test render
+try {
+  function TestApp() { return <div className="box"><span className="ok">Chunk 1 OK - lines 1-147 compile cleanly</span></div>; }
+  ReactDOM.createRoot(document.getElementById("root")).render(<TestApp/>);
+  document.getElementById("r").innerHTML = "<span class=ok>PASS: Lines 1-147 compiled OK</span>";
+} catch(e) {
+  document.getElementById("r").innerHTML = "<span class=fail>FAIL in chunk 1 (lines 1-147): " + e.toString() + "</span>";
+}
+  </script>
+</body>
+</html>
